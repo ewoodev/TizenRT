@@ -193,7 +193,6 @@
  */
 
 #define STACK_COLOR    0xdeadbeef
-#define INTSTACK_COLOR 0xdeadbeef
 #define HEAP_COLOR     'h'
 
 #if defined(CONFIG_ARCH_ARMV7A_FAMILY)
