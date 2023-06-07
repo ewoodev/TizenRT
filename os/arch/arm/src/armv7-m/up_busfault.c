@@ -124,7 +124,9 @@ int up_busfault(int irq, FAR void *context, FAR void *arg)
 	uint32_t bfar = getreg32(NVIC_BFAULT_ADDR);
 	system_exception_location = regs[REG_R15];
 
-	print_busfault_detail(regs, cfsr, bfar);
+	if (is_enable_to_fault_output()) {
+		print_busfault_detail(regs, cfsr, bfar);
+	}
 
 #ifdef CONFIG_SYSTEM_REBOOT_REASON
 	if (cfsr & IBUSERR) {

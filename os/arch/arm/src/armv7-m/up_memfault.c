@@ -158,7 +158,9 @@ int up_memfault(int irq, FAR void *context, FAR void *arg)
 		system_exception_location = regs[REG_R14];	/* The PC value might be invalid, so use LR */
 	}
 
-	print_memfault_detail(regs, cfsr, mmfar);
+	if (is_enable_to_fault_output()) {
+		print_memfault_detail(regs, cfsr, mmfar);
+	}
 
 #ifdef CONFIG_SYSTEM_REBOOT_REASON
 	if (cfsr & IACCVIOL) {

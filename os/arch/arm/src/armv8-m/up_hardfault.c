@@ -199,7 +199,9 @@ int up_hardfault(int irq, FAR void *context, FAR void *arg)
 	}
 #endif
 
-	print_hardfault_detail(irq, regs);
+	if (is_enable_to_fault_output()) {
+		print_hardfault_detail(irq, regs);
+	}
 
 	(void)irqsave();
 

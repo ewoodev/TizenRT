@@ -959,7 +959,9 @@ void up_assert(const uint8_t *filename, int lineno)
 #endif
 	abort_mode = true;
 
-	print_assert_detail(filename, lineno, fault_tcb);
+	if (is_enable_to_fault_output()) {
+		print_assert_detail(filename, lineno, fault_tcb);
+	}
 
 #if defined(CONFIG_BOARD_ASSERT_AUTORESET)
 	(void)boardctl(BOARDIOC_RESET, 0);

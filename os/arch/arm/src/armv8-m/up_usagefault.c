@@ -122,7 +122,9 @@ int up_usagefault(int irq, FAR void *context, FAR void *arg)
 		system_exception_location = regs[REG_R14];
 	}
 
-	print_usagefault_detail(regs, cfsr);
+	if (is_enable_to_fault_output()) {
+		print_usagefault_detail(regs, cfsr);
+	}
 
 #ifdef CONFIG_SYSTEM_REBOOT_REASON
 	 up_reboot_reason_write(REBOOT_SYSTEM_PREFETCHABORT);

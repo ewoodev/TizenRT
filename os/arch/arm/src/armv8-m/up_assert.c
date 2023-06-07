@@ -595,7 +595,12 @@ void up_assert(const uint8_t *filename, int lineno)
 		asserted_location = (uint32_t)kernel_assert_location;
 	}
 
-	print_assert_detail(filename, lineno, fault_tcb, asserted_location);
+	/* Print assert detail information and dump state,
+	 * but if os security level is high, It is not printed.
+	 */
+	if (is_enable_to_fault_output()) {
+		print_assert_detail(filename, lineno, fault_tcb, asserted_location);
+	}
 
 	recovery_assert(asserted_location);
 }
