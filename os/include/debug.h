@@ -73,6 +73,10 @@
 #include <tinyara/logm.h>
 #endif
 
+#ifdef CONFIG_SECURE_DEBUG_ASSERT
+#include <tinyara/security_level.h>
+#endif
+
 #include <syslog.h>
 
 /****************************************************************************
@@ -761,6 +765,14 @@ int get_errno(void);
 /******************************************/
 /*        OS Function specific debug      */
 /******************************************/
+
+#ifdef CONFIG_SECURE_DEBUG_ASSERT
+#define is_enable_to_fault_output() get_security_level() == LOW_SECURITY_LEVEL
+#define assertdbg(format, ...)    if(is_enable_to_fault_output()) { lldbg(format, ##__VA_ARGS__); }
+#else
+#define is_enable_to_fault_output() true
+#define assertdbg(format, ...)    lldbg(format, ##__VA_ARGS__)
+#endif
 
 #ifdef CONFIG_DEBUG_DMA_ERROR
 #define dmadbg(format, ...)    dbg(format, ##__VA_ARGS__)
@@ -1531,6 +1543,14 @@ int get_errno(void);
 /******************************************/
 /*        OS Function specific debug      */
 /******************************************/
+
+#ifdef CONFIG_SECURE_DEBUG_ASSERT
+#define is_enable_to_fault_output() get_security_level() == LOW_SECURITY_LEVEL
+int assertdbg(const char *format, ...)
+#else
+#define is_enable_to_fault_output() true
+#define assertdbg    lldbg
+#endif
 
 #ifdef CONFIG_DEBUG_DMA_ERROR
 #define dmadbg      dbg

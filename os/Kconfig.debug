@@ -688,6 +688,25 @@ endif #DEBUG_UI
 
 comment "OS Function Debug Options"
 
+config DEBUG_ASSERT
+	bool
+	default y
+	---help---
+		Enable Assert debug feature.
+
+if DEBUG_ASSERT
+
+config SECURE_DEBUG_ASSERT
+	bool "Enable Assert Debug Feature wtih security level"
+	default y
+	depends on SECURITY_LEVEL
+	---help---
+		Enable assert debug feature with enhanced security.
+		If you enable DEBUG_ASSERT_SECURE, always check security level,
+		before assert syslog output.
+
+endif #DEBUG_ASSERT
+
 config DEBUG_DMA
 	bool "DMA Debug Feature"
 	default n
