@@ -111,7 +111,7 @@ uint32_t *up_doirq(int irq, uint32_t *regs)
 	/* check remaining stack available, assert if stack overflows */
 	uint32_t stack_remain;
 
-	stack_remain = (CONFIG_ARCH_INTERRUPTSTACK & ~3) - up_check_intstack();
+	stack_remain = STACK_ALIGN_DOWN(CONFIG_ARCH_INTERRUPTSTACK) - up_check_intstack();
 	if (stack_remain < 8) {
 		assertdbg("STACK OVERFLOW!!\n");
 		PANIC();

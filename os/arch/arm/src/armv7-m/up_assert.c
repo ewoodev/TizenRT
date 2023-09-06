@@ -259,7 +259,7 @@ static void up_dumpstate(void)
 	uint32_t sp = up_getsp();
 	uint32_t stackbase = 0;
 	uint32_t stacksize = 0;
-#if CONFIG_ARCH_INTERRUPTSTACK > 3
+#if CONFIG_ARCH_INTERRUPTSTACK >= STACK_ALIGN_MASK
 	uint32_t istackbase = 0;
 	uint32_t istacksize = 0;
 #endif
@@ -269,9 +269,9 @@ static void up_dumpstate(void)
 
 	stackbase = (uint32_t)rtcb->adj_stack_ptr;
 	stacksize = (uint32_t)rtcb->adj_stack_size;
-#if CONFIG_ARCH_INTERRUPTSTACK > 3
+#if CONFIG_ARCH_INTERRUPTSTACK >= CONFIG_STACK_ALIGNMENT
 	istackbase = (uint32_t)&g_intstackbase;
-	istacksize = (CONFIG_ARCH_INTERRUPTSTACK & ~3);
+	istacksize = STACK_ALIGN_DOWN(CONFIG_ARCH_INTERRUPTSTACK);
 #endif
 	bool is_irq_assert = false;
 	bool is_sp_corrupt = false;
@@ -320,7 +320,7 @@ static void up_dumpstate(void)
 #ifdef CONFIG_DEBUG_IRQ_INFO
 		lldbg("IRQ name: %s \n", g_irqvector[g_irq_nums[irq_num]].irq_name);
 #endif
-#if CONFIG_ARCH_INTERRUPTSTACK > 3
+#if CONFIG_ARCH_INTERRUPTSTACK >= CONFIG_STACK_ALIGNMENT
 		if ((sp <= istackbase) && (sp > (istackbase - istacksize))) {
 			stackbase = istackbase;
 			stacksize = istacksize;
@@ -354,7 +354,7 @@ static void up_dumpstate(void)
 		/* Since SP is corrupted, we dont know which stack was being used.
 		 * So, dump all the available stacks.
 		 */
-#if CONFIG_ARCH_INTERRUPTSTACK > 3
+#if CONFIG_ARCH_INTERRUPTSTACK >= CONFIG_STACK_ALIGNMENT
 		lldbg("IRQ stack dump:\n");
 		up_stackdump(istackbase - istacksize + 1, istackbase);
 #endif

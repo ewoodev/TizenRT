@@ -267,17 +267,17 @@ static void arm_dump_backtrace(struct tcb_s *tcb, void *arg)
 
 static void arm_showtasks(void)
 {
-#if CONFIG_ARCH_INTERRUPTSTACK > 7
+#if CONFIG_ARCH_INTERRUPTSTACK > STACK_ALIGN_MASK
 #  ifdef CONFIG_STACK_COLORATION
   uint32_t stack_used = up_check_intstack();
   uint32_t stack_filled = 0;
 
-  if ((CONFIG_ARCH_INTERRUPTSTACK & ~7) > 0 && stack_used > 0)
+  if (STACK_ALIGN_DOWN(CONFIG_ARCH_INTERRUPTSTACK) > 0 && stack_used > 0)
     {
       /* Use fixed-point math with one decimal place */
 
       stack_filled = 10 * 100 *
-                     stack_used / (CONFIG_ARCH_INTERRUPTSTACK & ~7);
+                     stack_used / STACK_ALIGN_DOWN(CONFIG_ARCH_INTERRUPTSTACK);
     }
 #  endif
 #endif

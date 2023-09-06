@@ -204,24 +204,24 @@ ssize_t up_check_stack_remain(void)
 #ifdef CONFIG_ARCH_NESTED_IRQ_STACK_SIZE
 size_t up_check_nestirqstack(void)
 {
-	return do_stackcheck((uintptr_t)&g_nestedirqstkalloc, (CONFIG_ARCH_NESTED_IRQ_STACK_SIZE & ~3));
+	return do_stackcheck((uintptr_t)&g_nestedirqstkalloc, STACK_ALIGN_DOWN(CONFIG_ARCH_NESTED_IRQ_STACK_SIZE));
 }
 
 size_t up_check_nestirqstack_remain(void)
 {
-	return (CONFIG_ARCH_NESTED_IRQ_STACK_SIZE & ~3) - up_check_nestirqstack();
+	return STACK_ALIGN_DOWN(CONFIG_ARCH_NESTED_IRQ_STACK_SIZE) - up_check_nestirqstack();
 }
 #endif
 
-#if CONFIG_ARCH_INTERRUPTSTACK > 3
+#if CONFIG_ARCH_INTERRUPTSTACK >= CONFIG_STACK_ALIGNMENT
 size_t up_check_intstack(void)
 {
-	return do_stackcheck((uintptr_t)&g_intstackalloc, (CONFIG_ARCH_INTERRUPTSTACK & ~3));
+	return do_stackcheck((uintptr_t)&g_intstackalloc, STACK_ALIGN_DOWN(CONFIG_ARCH_INTERRUPTSTACK));
 }
 
 size_t up_check_intstack_remain(void)
 {
-	return (CONFIG_ARCH_INTERRUPTSTACK & ~3) - up_check_intstack();
+	return STACK_ALIGN_DOWN(CONFIG_ARCH_INTERRUPTSTACK) - up_check_intstack();
 }
 #endif
 

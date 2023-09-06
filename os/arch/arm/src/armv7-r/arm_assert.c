@@ -707,7 +707,7 @@ static void up_dumpstate(void)
 #ifdef CONFIG_MPU_STACKGUARD
 	uint32_t uguardsize = 0;
 #endif
-#if CONFIG_ARCH_INTERRUPTSTACK > 3
+#if CONFIG_ARCH_INTERRUPTSTACK >= CONFIG_STACK_ALIGNMENT
 	uint32_t istackbase;
 	uint32_t istacksize;
 #endif
@@ -729,11 +729,11 @@ static void up_dumpstate(void)
 
 	lldbg("Current sp: %08x\n", sp);
 
-#if CONFIG_ARCH_INTERRUPTSTACK > 3
+#if CONFIG_ARCH_INTERRUPTSTACK >= CONFIG_STACK_ALIGNMENT
 	/* Get the limits on the interrupt stack memory */
 
 	istackbase = (uint32_t)&g_intstackbase;
-	istacksize = (CONFIG_ARCH_INTERRUPTSTACK & ~3);
+	istacksize = STACK_ALIGN_DOWN(CONFIG_ARCH_INTERRUPTSTACK);
 
 	/* Show interrupt stack info */
 
@@ -779,7 +779,7 @@ static void up_dumpstate(void)
 	}
 #endif
 
-#if CONFIG_ARCH_INTERRUPTSTACK > 3
+#if CONFIG_ARCH_INTERRUPTSTACK >= CONFIG_STACK_ALIGNMENT
 	/* Does the current stack pointer lie within the interrupt stack? */
 
 	if (sp > istackbase - istacksize && sp < istackbase) {

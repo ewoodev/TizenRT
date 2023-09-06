@@ -1894,7 +1894,7 @@ ssize_t up_check_tcbstack_remain(FAR struct tcb_s *tcb);
 size_t up_check_stack(void);
 size_t up_check_assertstack(uintptr_t alloc, size_t size);
 ssize_t up_check_stack_remain(void);
-#if CONFIG_ARCH_INTERRUPTSTACK > 3
+#if CONFIG_ARCH_INTERRUPTSTACK >= CONFIG_STACK_ALIGNMENT
 size_t up_check_intstack(void);
 size_t up_check_intstack_remain(void);
 #endif

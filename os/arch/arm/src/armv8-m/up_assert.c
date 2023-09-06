@@ -269,7 +269,7 @@ static void up_dumpstate(void)
 	uint32_t sp = up_getsp();
 	uint32_t stackbase = 0;
 	uint32_t stacksize = 0;
-#if CONFIG_ARCH_INTERRUPTSTACK > 3
+#if CONFIG_ARCH_INTERRUPTSTACK >= CONFIG_STACK_ALIGNMENT
 	uint32_t istackbase = 0;
 	uint32_t istacksize = 0;
 #endif
@@ -281,13 +281,13 @@ static void up_dumpstate(void)
 
 	stackbase = (uint32_t)rtcb->adj_stack_ptr;
 	stacksize = (uint32_t)rtcb->adj_stack_size;
-#if CONFIG_ARCH_INTERRUPTSTACK > 3
+#if CONFIG_ARCH_INTERRUPTSTACK >= CONFIG_STACK_ALIGNMENT
 	istackbase = (uint32_t)&g_intstackbase;
-	istacksize = (CONFIG_ARCH_INTERRUPTSTACK & ~3);
+	istacksize = STACK_ALIGN_DOWN(CONFIG_ARCH_INTERRUPTSTACK);
 #endif
 #ifdef CONFIG_ARCH_NESTED_IRQ_STACK_SIZE
 	nestirqstkbase = (uint32_t)&g_nestedirqstkbase;
-	nestirqstksize = (CONFIG_ARCH_NESTED_IRQ_STACK_SIZE & ~3);
+	nestirqstksize = STACK_ALIGN_DOWN(CONFIG_ARCH_NESTED_IRQ_STACK_SIZE);
 #endif
 	bool is_irq_assert = false;
 	bool is_sp_corrupt = false;
@@ -342,7 +342,7 @@ static void up_dumpstate(void)
 			lldbg("Current SP is Nested IRQ SP: %08x\n", sp);
 			lldbg("Nested IRQ stack:\n");
 		} else
-#if CONFIG_ARCH_INTERRUPTSTACK > 3
+#if CONFIG_ARCH_INTERRUPTSTACK >= CONFIG_STACK_ALIGNMENT
 		if ((sp <= istackbase) && (sp > (istackbase - istacksize))) {
 			stackbase = istackbase;
 			stacksize = istacksize;
@@ -380,7 +380,7 @@ static void up_dumpstate(void)
 		lldbg("Nested IRQ stack dump:\n");
 		up_stackdump(nestirqstkbase - nestirqstksize + 1, nestirqstkbase);
 #endif
-#if CONFIG_ARCH_INTERRUPTSTACK > 3
+#if CONFIG_ARCH_INTERRUPTSTACK >= CONFIG_STACK_ALIGNMENT
 		lldbg("IRQ stack dump:\n");
 		up_stackdump(istackbase - istacksize + 1, istackbase);
 #endif

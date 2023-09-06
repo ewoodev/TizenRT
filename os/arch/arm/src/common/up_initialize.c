@@ -128,10 +128,10 @@ static void up_calibratedelay(void)
  *
  ****************************************************************************/
 
-#if defined(CONFIG_STACK_COLORATION) && CONFIG_ARCH_INTERRUPTSTACK > 3
+#if defined(CONFIG_STACK_COLORATION) && CONFIG_ARCH_INTERRUPTSTACK >= CONFIG_STACK_ALIGNMENT
 static inline void up_color_intstack(void)
 {
-	up_stack_color((void *)&g_intstackalloc, (size_t)(CONFIG_ARCH_INTERRUPTSTACK & ~3));
+	up_stack_color((void *)&g_intstackalloc, (size_t)(STACK_ALIGN_DOWN(CONFIG_ARCH_INTERRUPTSTACK)));
 }
 #else
 #define up_color_intstack()
@@ -140,7 +140,7 @@ static inline void up_color_intstack(void)
 #if defined(CONFIG_STACK_COLORATION) && defined(CONFIG_ARCH_NESTED_IRQ_STACK_SIZE)
 static inline void up_color_nestirqstack(void)
 {
-	up_stack_color((void *)&g_nestedirqstkalloc, (size_t)(CONFIG_ARCH_NESTED_IRQ_STACK_SIZE & ~3));
+	up_stack_color((void *)&g_nestedirqstkalloc, (size_t)(STACK_ALIGN_DOWN(CONFIG_ARCH_NESTED_IRQ_STACK_SIZE)));
 }
 #else
 #define up_color_nestirqstack()
