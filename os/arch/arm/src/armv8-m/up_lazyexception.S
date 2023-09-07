@@ -60,6 +60,7 @@
 #include "exc_return.h"
 
 #include "chip.h"
+#include "up_internal.h"
 
 /************************************************************************************************
  * Pre-processor Definitions
@@ -117,7 +118,7 @@
  *
  ************************************************************************************************/
 
-#if !defined(CONFIG_SMP) && CONFIG_ARCH_INTERRUPTSTACK > 7
+#if !defined(CONFIG_SMP) && CONFIG_ARCH_INTERRUPTSTACK >= CONFIG_STACK_ALIGNMENT
 	.macro	setintstack, tmp1, tmp2
 #ifdef CONFIG_REG_STACK_OVERFLOW_PROTECTION
 	ldr		\tmp1, =g_intstackalloc
@@ -269,7 +270,7 @@ exception_common:
 
 	mov		r4, sp
 
-#if CONFIG_ARCH_INTERRUPTSTACK > 7
+#if CONFIG_ARCH_INTERRUPTSTACK >= CONFIG_STACK_ALIGNMENT
 
 	/* If g_nestlevel is zero then behave as normal, switching from the user
 	 * to the interrupt stack; if g_nestlevel is greater than zero, then do
@@ -455,14 +456,14 @@ exception_common:
  *
  ************************************************************************************************/
 
-#if !defined(CONFIG_SMP) && CONFIG_ARCH_INTERRUPTSTACK > 3
+#if !defined(CONFIG_SMP) && CONFIG_ARCH_INTERRUPTSTACK >= CONFIG_STACK_ALIGNMENT
 	.bss
 	.global	g_intstackalloc
 	.global	g_intstackbase
 	.global	g_nestlevel
-	.align	8
+	.align	CONFIG_STACK_ALIGNMENT
 g_intstackalloc:
-	.skip	((CONFIG_ARCH_INTERRUPTSTACK + 4) & ~7)
+	.skip	STACK_ALIGN_UP(CONFIG_ARCH_INTERRUPTSTACK)
 g_intstackbase:
 	.size	g_intstackalloc, .-g_intstackalloc
 	.skip 	4

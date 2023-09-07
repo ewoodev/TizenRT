@@ -65,6 +65,25 @@
 /************************************************************************************
  * Pre-processor Definitions
  ************************************************************************************/
+#ifndef CONFIG_STACK_ALIGNMENT
+
+/* The symbol  __ARM_EABI__ is defined by GCC if EABI is being used.  If you
+ * are not using GCC, make sure that CONFIG_STACK_ALIGNMENT is set correctly!
+ */
+
+#ifdef __ARM_EABI__
+#define CONFIG_STACK_ALIGNMENT 8
+#else
+#define CONFIG_STACK_ALIGNMENT 4
+#endif
+#endif
+
+/* Stack alignment macros */
+
+#define STACK_ALIGN_MASK    (CONFIG_STACK_ALIGNMENT - 1)
+#define STACK_ALIGN_DOWN(a) ((a) & ~STACK_ALIGN_MASK)
+#define STACK_ALIGN_UP(a)   (((a) + STACK_ALIGN_MASK) & ~STACK_ALIGN_MASK)
+
 /* Configuration ********************************************************************/
 
 #ifdef CONFIG_ARCH_HIPRI_INTERRUPT
@@ -122,7 +141,7 @@
  *   case.  Must be provided by MCU-specific logic in the SMP case.
  *
  ************************************************************************************/
-#if !defined(CONFIG_SMP) && CONFIG_ARCH_INTERRUPTSTACK > 7
+#if !defined(CONFIG_SMP) && CONFIG_ARCH_INTERRUPTSTACK >= CONFIG_STACK_ALIGNMENT
 	.macro	setintstack, tmp1, tmp2
 #ifdef CONFIG_REG_STACK_OVERFLOW_PROTECTION
 	ldr		\tmp1, =g_intstackalloc
@@ -254,7 +273,7 @@ exception_common:
 	mov		r1, sp
 	mrs		r0, ipsr				/* R0=exception number */
 
-#if CONFIG_ARCH_INTERRUPTSTACK > 3
+#if CONFIG_ARCH_INTERRUPTSTACK >= CONFIG_STACK_ALIGNMENT
 	/* If CONFIG_ARCH_INTERRUPTSTACK is defined, we will set the MSP to use
 	 * a special special interrupt stack pointer.  The way that this is done
 	 * here prohibits nested interrupts without some additional logic!
@@ -440,14 +459,14 @@ exception_common:
  *
  ************************************************************************************/
 
-#if CONFIG_ARCH_INTERRUPTSTACK > 3
+#if CONFIG_ARCH_INTERRUPTSTACK >= CONFIG_STACK_ALIGNMENT
 	.bss
 	.global	g_intstackalloc
 	.global	g_intstackbase
 	.global	g_nestlevel
-	.align	4
+	.align	CONFIG_STACK_ALIGNMENT
 g_intstackalloc:
-	.skip	(CONFIG_ARCH_INTERRUPTSTACK & ~3)
+	.skip	STACK_ALIGN_DOWN(CONFIG_ARCH_INTERRUPTSTACK)
 g_intstackbase:
 	.size	g_intstackalloc, .-g_intstackalloc
 g_nestlevel:
@@ -458,9 +477,9 @@ g_nestlevel:
 	.bss
 	.global	g_nestedirqstkalloc
 	.global	g_nestedirqstkbase
-	.align	4
+	.align	CONFIG_STACK_ALIGNMENT
 g_nestedirqstkalloc:
-	.skip   (CONFIG_ARCH_NESTED_IRQ_STACK_SIZE & ~3)
+	.skip   STACK_ALIGN_DOWN(CONFIG_ARCH_NESTED_IRQ_STACK_SIZE)
 g_nestedirqstkbase:
 	.size	g_nestedirqstkalloc, .-g_nestedirqstkalloc
 

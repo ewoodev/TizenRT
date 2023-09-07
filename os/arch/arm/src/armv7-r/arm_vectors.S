@@ -244,7 +244,7 @@ arm_vectorirq:
 	mov		fp, #0					/* Init frame pointer */
 	mov		r0, sp					/* Get r0=xcp */
 
-#if CONFIG_ARCH_INTERRUPTSTACK > 3
+#if CONFIG_ARCH_INTERRUPTSTACK >= CONFIG_STACK_ALIGNMENT
 	ldr		sp, .Lirqstackbase		/* SP = interrupt stack base */
 	str		r0, [sp]				/* Save the user stack pointer */
 	mov		r4, sp					/* Save the SP in a preserved register */
@@ -320,7 +320,7 @@ arm_vectorirq:
 
 .Lirqtmp:
 	.word	g_irqtmp
-#if CONFIG_ARCH_INTERRUPTSTACK > 3
+#if CONFIG_ARCH_INTERRUPTSTACK >= CONFIG_STACK_ALIGNMENT
 .Lirqstackbase:
 	.word	g_intstackbase
 #endif
@@ -1035,7 +1035,7 @@ arm_vectorfiq:
 	mov		fp, #0					/* Init frame pointer */
 	mov		r0, sp					/* Get r0=xcp */
 
-#if CONFIG_ARCH_INTERRUPTSTACK > 3
+#if CONFIG_ARCH_INTERRUPTSTACK >= CONFIG_STACK_ALIGNMENT
 	ldr		sp, .Lfiqstackbase		/* SP = interrupt stack base */
 	str		r0, [sp]				/* Save the user stack pointer */
 	mov		r4, sp					/* Save the SP in a preserved register */
@@ -1088,7 +1088,7 @@ arm_vectorfiq:
 
 .Lfiqtmp:
 	.word	g_fiqtmp
-#if CONFIG_ARCH_INTERRUPTSTACK > 3
+#if CONFIG_ARCH_INTERRUPTSTACK >= CONFIG_STACK_ALIGNMENT
 .Lfiqstackbase:
 	.word	g_intstackbase
 #endif
@@ -1102,7 +1102,7 @@ arm_vectorfiq:
  *  Name: g_intstackalloc/g_intstackbase
  ************************************************************************************/
 
-#if CONFIG_ARCH_INTERRUPTSTACK > 3
+#if CONFIG_ARCH_INTERRUPTSTACK >= CONFIG_STACK_ALIGNMENT
 	.bss
 	.align	4
 
@@ -1112,11 +1112,11 @@ arm_vectorfiq:
 	.type	g_intstackbase, object
 
 g_intstackalloc:
-	.skip	((CONFIG_ARCH_INTERRUPTSTACK & ~3) - 4)
+	.skip	STACK_ALIGN_UP(CONFIG_ARCH_INTERRUPTSTACK)
 g_intstackbase:
 	.skip	4
 	.size	g_intstackbase, 4
-	.size	g_intstackalloc, (CONFIG_ARCH_INTERRUPTSTACK & ~3)
+	.size	g_intstackalloc, STACK_ALIGN_DOWN(CONFIG_ARCH_INTERRUPTSTACK)
 
 #endif /* CONFIG_ARCH_INTERRUPTSTACK > 3 */
 
@@ -1133,11 +1133,11 @@ g_intstackbase:
 	.type	g_dabtstackbase, object
 
 g_dabtstackalloc:
-	.skip	((CONFIG_ARCH_DABORTSTACK & ~3) - 4)
+	.skip	STACK_ALIGN_UP(CONFIG_ARCH_DABORTSTACK)
 g_dabtstackbase:
 	.skip	4
 	.size	g_dabtstackbase, 4
-	.size	g_dabtstackalloc, (CONFIG_ARCH_DABORTSTACK & ~3)
+	.size	g_dabtstackalloc, STACK_ALIGN_DOWN(CONFIG_ARCH_DABORTSTACK)
 
 #endif /* defined(CONFIG_ARCH_DABORTSTACK) && CONFIG_ARCH_DABORTSTACK >= 512 */
 	.end

@@ -200,7 +200,7 @@ exception_common:
 
 	mov		r1, sp
 
-#if CONFIG_ARCH_INTERRUPTSTACK > 3
+#if CONFIG_ARCH_INTERRUPTSTACK >= CONFIG_STACK_ALIGNMENT
 	/* If CONFIG_ARCH_INTERRUPTSTACK is defined, we will set the MSP to use
 	 * a special special interrupt stack pointer.  The way that this is done
 	 * here prohibits nested interrupts without some additional logic!
@@ -329,13 +329,13 @@ exception_common:
  *
  ************************************************************************************/
 
-#if CONFIG_ARCH_INTERRUPTSTACK > 3
+#if CONFIG_ARCH_INTERRUPTSTACK >= CONFIG_STACK_ALIGNMENT
 	.bss
 	.global	g_intstackalloc
 	.global	g_intstackbase
-	.align	4
+	.align	CONFIG_STACK_ALIGNMENT
 g_intstackalloc:
-	.skip	(CONFIG_ARCH_INTERRUPTSTACK & ~3)
+	.skip	STACK_ALIGN_DOWN(CONFIG_ARCH_INTERRUPTSTACK)
 g_intstackbase:
 	.size	g_intstackalloc, .-g_intstackalloc
 #endif
