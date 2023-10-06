@@ -185,16 +185,6 @@ volatile dq_queue_t g_waitingforfin;
 
 volatile dq_queue_t g_inactivetasks;
 
-/* These are lists of dayed memory deallocations that need to be handled
- * within the IDLE loop or worker thread.  These deallocations get queued
- * by sched_kufree and sched_kfree() if the OS needs to deallocate memory
- * while it is within an interrupt handler.
- */
-
-volatile sq_queue_t g_delayed_kufree;
-
-volatile sq_queue_t g_delayed_kfree;
-
 /* This gives number of alive tasks at any point of time in the system.
  * If the system is already running CONFIG_MAX_TASKS, Creating new
  * task is not supported.
@@ -312,11 +302,6 @@ void os_start(void)
 	dq_init(&g_waitingforfill);
 #endif
 	dq_init(&g_inactivetasks);
-	sq_init(&g_delayed_kufree);
-#if (defined(CONFIG_BUILD_PROTECTED) || defined(CONFIG_BUILD_KERNEL)) && \
-	 defined(CONFIG_MM_KERNEL_HEAP)
-	sq_init(&g_delayed_kfree);
-#endif
 
 	/* Initialize the logic that determine unique process IDs. */
 
@@ -621,28 +606,6 @@ void os_start(void)
 
 	svdbg("Beginning Idle Loop\n");
 	for (;;) {
-		/* Perform garbage collection (if it is not being done by the worker
-		 * thread).  This cleans-up memory de-allocations that were queued
-		 * because they could not be freed in that execution context (for
-		 * example, if the memory was freed from an interrupt handler).
-		 */
-
-#ifndef CONFIG_SCHED_WORKQUEUE
-		/* We must have exclusive access to the memory manager to do this
-		 * BUT the idle task cannot wait on a semaphore.  So we only do
-		 * the cleanup now if we can get the semaphore -- this should be
-		 * possible because if the IDLE thread is running, no other task is!
-		 *
-		 * WARNING: This logic could have undesirable side-effects if priority
-		 * inheritance is enabled.  Imaginee the possible issues if the
-		 * priority of the IDLE thread were to get boosted!  Moral: If you
-		 * use priority inheritance, then you should also enable the work
-		 * queue so that is done in a safer context.
-		 */
-
-		sched_garbagecollection();
-#endif
-
 		/* Perform any processor-specific idle state operations */
 
 		up_idle();

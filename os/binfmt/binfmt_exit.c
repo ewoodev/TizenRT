@@ -71,7 +71,6 @@
 #include "binfmt.h"
 
 #ifdef CONFIG_BINFMT_LOADABLE
-extern volatile sq_queue_t g_delayed_kufree;
 
 /****************************************************************************
  * Public Functions
@@ -99,10 +98,6 @@ extern volatile sq_queue_t g_delayed_kufree;
 int binfmt_exit(FAR struct binary_s *bin)
 {
 	int ret;
-	irqstate_t flags;
-	FAR void *address;
-	uint32_t uheap_start;
-	uint32_t uheap_end;
 
 	DEBUGASSERT(bin != NULL);
 
@@ -115,20 +110,6 @@ int binfmt_exit(FAR struct binary_s *bin)
 
 	elf_delete_bin_section_addr(bin->binary_idx);
 
-	uheap_start = (uint32_t)bin->uheap;
-	uheap_end = uheap_start + bin->sizes[BIN_HEAP];
-
-	/* Remove resources which in binary to be unloaded from delayed deallocation. */
-	address = sq_peek(&g_delayed_kufree);
-	while (address) {
-		mllvdbg("Remove addr %p from deplaed kufree, uheap (%p, %p)\n", address, uheap_start, uheap_end);
-		if (uheap_start <= (uint32_t)address && (uint32_t)address <= uheap_end) {
-			flags = irqsave();
-			sq_rem((FAR sq_entry_t *)address, (FAR sq_queue_t *)&g_delayed_kufree);
-			irqrestore(flags);
-		}
-		address = (FAR void *)sq_next((FAR sq_entry_t *)address);
-	}
 	mm_disable_app_heap_list(bin->uheap);
 
 	/* Free the load structure */

@@ -198,16 +198,6 @@ extern volatile dq_queue_t g_inactivetasks;
  */
 extern volatile uint8_t g_alive_taskcount;
 
-/* These are lists of dayed memory deallocations that need to be handled
- * within the IDLE loop or worker thread.  These deallocations get queued
- * by sched_kufree and sched_kfree() if the OS needs to deallocate memory
- * while it is within an interrupt handler.
- */
-
-extern volatile sq_queue_t g_delayed_kufree;
-
-extern volatile sq_queue_t g_delayed_kfree;
-
 /* This is the value of the last process ID assigned to a task */
 
 extern volatile pid_t g_lastpid;

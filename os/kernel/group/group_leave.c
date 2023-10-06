@@ -249,7 +249,7 @@ static inline void group_release(FAR struct task_group_s *group)
 	/* Release the members array */
 
 	if (group->tg_members) {
-		sched_kfree(group->tg_members);
+		kmm_free(group->tg_members);
 		group->tg_members = NULL;
 	}
 #endif
@@ -281,14 +281,14 @@ static inline void group_release(FAR struct task_group_s *group)
 		 * must explicitly freed here.
 		 */
 
-		sched_kfree(group->tg_streamlist);
+		kmm_free(group->tg_streamlist);
 	}
 #endif
 #endif
 
 	/* Release the group container itself */
 
-	sched_kfree(group);
+	kmm_free(group);
 }
 
 /*****************************************************************************

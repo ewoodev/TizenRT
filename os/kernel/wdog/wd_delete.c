@@ -135,16 +135,16 @@ int wd_delete(WDOG_ID wdog)
 	 */
 
 	if (WDOG_ISALLOCED(wdog)) {
-		/* It was allocated from the heap.  Use sched_kfree() to release the
+		/* It was allocated from the heap.  Use kmm_free() to release the
 		 * memory.  If the timer was released from an interrupt handler,
-		 * sched_kfree() will defer the actual deallocation of the memory
+		 * kmm_free() will defer the actual deallocation of the memory
 		 * until a more appropriate time.
 		 *
 		 * We don't need interrupts disabled to do this.
 		 */
 
 		irqrestore(state);
-		sched_kfree(wdog);
+		kmm_free(wdog);
 	}
 
 	/* This was a pre-allocated timer.  This function should not be called for

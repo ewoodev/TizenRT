@@ -135,7 +135,7 @@ void up_release_stack(FAR struct tcb_s *dtcb, uint8_t ttype)
 		}
 #endif
 		/* Use the kernel allocator if this is a kernel thread */
-		sched_kfree(dtcb->stack_alloc_ptr);
+		kmm_free(dtcb->stack_alloc_ptr);
 
 		/* Mark the stack freed */
 

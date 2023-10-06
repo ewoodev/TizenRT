@@ -120,5 +120,5 @@ void mq_msgqfree(FAR struct mqueue_inode_s *msgq)
 
 	/* Then deallocate the message queue itself */
 
-	sched_kfree(msgq);
+	kmm_free(msgq);
 }

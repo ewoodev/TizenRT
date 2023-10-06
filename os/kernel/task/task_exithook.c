@@ -111,7 +111,7 @@ inline void task_atexit(FAR struct tcb_s *tcb)
 
 			(*patexit->atexitfunc)();
 
-			sched_kfree(patexit);
+			kmm_free(patexit);
 		}
 	}
 }
@@ -147,7 +147,7 @@ inline void task_onexit(FAR struct tcb_s *tcb, int status)
 
 			(*ponexit->onexitfunc)(status, ponexit->onexitarg);
 
-			sched_kfree(ponexit);
+			kmm_free(ponexit);
 		}
 	}
 }

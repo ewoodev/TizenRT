@@ -177,12 +177,12 @@ static void usbhost_freeclass(FAR struct usbhost_rtk_wifi_s *usbclass)
 {
 	DEBUGASSERT(usbclass != NULL);
 
-	/* Free the class instance (calling sched_kfree() in case we are executing
+	/* Free the class instance (calling kmm_free() in case we are executing
 	 * from an interrupt handler.
 	 */
 
 	udbg("Freeing: %p\n", usbclass);
-	sched_kfree(usbclass);
+	kmm_free(usbclass);
 }
 
 static int usbhost_cfgdesc(FAR struct usbhost_rtk_wifi_s *priv, FAR const uint8_t *configdesc, int desclen)

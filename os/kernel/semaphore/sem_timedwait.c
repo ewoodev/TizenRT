@@ -293,8 +293,8 @@ int sem_timedwait(FAR sem_t *sem, FAR const struct timespec *abstime)
 	 * wd_delete(). The 'errno' value has been set appropriately by sem_wait()
 	 * or sem_timeout() or sem_trywait() in those cases.
 	 *
-	 * wd_delete()->sched_kfree->kmm_trysemaphore->mm_trysemaphore->sem_trywait
-	 * wd_delete()->sched_ufree->kumm_trysemaphore->mm_trysemaphore->sem_trywait
+	 * wd_delete()->kmm_free->kmm_trysemaphore->mm_trysemaphore->sem_trywait
+	 * wd_delete()->kumm_free->kumm_trysemaphore->mm_trysemaphore->sem_trywait
 	 */
 
 	if (ret < 0) {

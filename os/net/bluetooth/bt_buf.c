@@ -427,7 +427,7 @@ void bt_buf_release(FAR struct bt_buf_s *buf)
 			/* Otherwise, deallocate it. */
 
 			DEBUGASSERT(buf->pool == POOL_BUFFER_DYNAMIC);
-			sched_kfree(buf);
+			kmm_free(buf);
 		}
 
 	nvdbg("Buffer freed: %p\n", buf);

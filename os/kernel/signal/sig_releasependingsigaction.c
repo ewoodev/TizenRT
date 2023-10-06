@@ -128,6 +128,6 @@ void sig_releasependingsigaction(FAR sigq_t *sigq)
 	 */
 
 	else if (sigq->type == SIG_ALLOC_DYN) {
-		sched_kfree(sigq);
+		kmm_free(sigq);
 	}
 }

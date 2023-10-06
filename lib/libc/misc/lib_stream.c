@@ -198,7 +198,7 @@ void lib_stream_release(FAR struct task_group_s *group)
 			 */
 
 			if ((group->tg_flags & GROUP_FLAG_PRIVILEGED) != 0) {
-				sched_kfree(stream->fs_bufstart);
+				kmm_free(stream->fs_bufstart);
 			}
 #endif
 		}

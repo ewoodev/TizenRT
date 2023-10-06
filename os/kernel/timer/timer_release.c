@@ -112,7 +112,7 @@ static inline void timer_free(struct posix_timer_s *timer)
 		/* Otherwise, return it to the heap */
 
 		irqrestore(flags);
-		sched_kfree(timer);
+		kmm_free(timer);
 	}
 }
 

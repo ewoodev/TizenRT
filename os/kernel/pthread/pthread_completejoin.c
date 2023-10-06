@@ -299,5 +299,5 @@ void pthread_destroyjoin(FAR struct task_group_s *group, FAR struct join_s *pjoi
 
 	/* And deallocate the pjoin structure */
 
-	sched_kfree(pjoin);
+	kmm_free(pjoin);
 }

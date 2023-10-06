@@ -99,11 +99,7 @@ static struct hp_wqueue_s g_hpwork;
  *   priority work queue.
  *
  *   This, along with the lower priority worker thread(s) are the kernel
- *   mode work queues (also build in the flat build).  One of these threads
- *   also performs periodic garbage collection (that would otherwise be
- *   performed by the idle thread if CONFIG_SCHED_WORKQUEUE is not defined).
- *   That will be the higher priority worker thread only if a lower priority
- *   worker thread is available.
+ *   mode work queues (also build in the flat build).
  *
  *   All kernel mode worker threads are started by the OS during normal
  *   bring up.  This entry point is referenced by OS internally and should
@@ -122,21 +118,6 @@ static int work_hpthread(int argc, char *argv[])
 	/* Loop forever */
 
 	for (;;) {
-#ifndef CONFIG_SCHED_LPWORK
-		/* First, perform garbage collection.  This cleans-up memory
-		 * de-allocations that were queued because they could not be freed in
-		 * that execution context (for example, if the memory was freed from
-		 * an interrupt handler).
-		 *
-		 * NOTE: If the work thread is disabled, this clean-up is performed by
-		 * the IDLE thread (at a very, very low priority).  If the low-priority
-		 * work thread is enabled, then the garbage collection is done on that
-		 * thread instead.
-		 */
-
-		sched_garbagecollection();
-#endif
-
 		/* Then process queued work.  work_process will not return until: (1)
 		 * there is no further work in the work queue, and (2) the polling
 		 * period provided by g_hpwork.delay expires.
