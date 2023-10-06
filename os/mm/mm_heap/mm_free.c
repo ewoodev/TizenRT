@@ -74,6 +74,23 @@
  * Private Functions
  ****************************************************************************/
 
+#ifdef __KERNEL__
+static void mm_add_delaylist(FAR struct mm_heap_s *heap, FAR void *mem)
+{
+	FAR struct mm_delaynode_s *new = mem;
+	irqstate_t flags;
+
+	/* Delay the deallocation until a more appropriate time. */
+
+	flags = irqsave();
+
+	new->flink = heap->mm_delaylist.flink;
+	heap->mm_delaylist.flink = new;
+
+	irqrestore(flags);
+}
+#endif
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -108,11 +125,30 @@ void mm_free(FAR struct mm_heap_s *heap, FAR void *mem)
 		return;
 	}
 
-	/* We need to hold the MM semaphore while we muck with the
-	 * nodelist.
-	 */
+#ifdef __KERNEL__
+	/* Check current environment */
 
-	mm_takesemaphore(heap);
+	if (up_interrupt_context()) {
+		/* We are in ISR, add to mm_delaylist */
+
+		mm_add_delaylist(heap, mem);
+		return;
+	} else if (mm_trysemaphore(heap) == 0) {
+		/* Got the sem, do free immediately */
+	} else if (getpid() == 0) {
+		/* We are in IDLE task & can't get sem, add to mm_delaylist */
+
+		mm_add_delaylist(heap, mem);
+		return;
+	} else
+#endif
+	{
+		/* We need to hold the MM semaphore while we muck with the
+		 * nodelist.
+		 */
+
+		mm_takesemaphore(heap);
+	}
 
 	/* Map the memory chunk into a free node */
 

@@ -251,6 +251,12 @@ int mm_initialize(FAR struct mm_heap_s *heap, FAR void *heapstart, size_t heapsi
 	heap->mm_nregions = 0;
 #endif
 
+#ifdef __KERNEL__
+	/* Initialize mm_delaylist */
+
+	heap->mm_delaylist.flink = NULL;
+#endif
+
 	/* Initialize the node array */
 
 	memset(heap->mm_nodelist, 0, sizeof(struct mm_freenode_s) * (MM_NNODES + 1));

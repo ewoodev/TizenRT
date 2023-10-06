@@ -90,6 +90,40 @@
  * Private Functions
  ****************************************************************************/
 
+#ifdef __KERNEL__
+static void mm_free_delaylist(FAR struct mm_heap_s *heap)
+{
+	FAR struct mm_delaynode_s *tmp;
+	irqstate_t flags;
+
+	/* Move the delay list to local */
+
+	flags = irqsave();
+
+	tmp = heap->mm_delaylist.flink;
+	heap->mm_delaylist.flink = NULL;
+
+	irqrestore(flags);
+
+	/* Test if the delayed is empty */
+
+	while (tmp) {
+		FAR void *address;
+
+		/* Get the first delayed deallocation */
+
+		address = tmp;
+		tmp = tmp->flink;
+
+		/* The address should always be non-NULL since that was checked in the
+		 * 'while' condition above.
+		 */
+
+		mm_free(heap, address);
+	}
+}
+#endif
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -113,6 +147,12 @@ FAR void *mm_malloc(FAR struct mm_heap_s *heap, size_t size)
 	FAR struct mm_freenode_s *node;
 	void *ret = NULL;
 	int ndx;
+
+#ifdef __KERNEL__
+	/* Firstly, free mm_delaylist */
+
+	mm_free_delaylist(heap);
+#endif
 
 	/* Handle bad sizes */
 
