@@ -70,6 +70,29 @@
  * Pre-processor Definitions
  ****************************************************************************/
 
+#if defined(CONFIG_BUILD_FLAT) || defined(__KERNEL__)
+/* The fflush is used to flush stdout buffer when abort.
+ * If abort_mode is setted, we should not take semaphore. 
+ */
+extern bool abort_mode;
+#define LIB_TAKE_SEMAPHORE_CHECK_ABORT(stream) \
+do {	\
+	if (!abort_mode)	{	\
+		lib_take_semaphore(stream);	\
+	}	\
+} while (0)
+#define LIB_GIVE_SEMAPHORE_CHECK_ABORT(stream)	\
+do {	\
+	if (!abort_mode)	{	\
+		lib_give_semaphore(stream);	\
+	}	\
+} while (0)
+
+#else
+#define LIB_TAKE_SEMAPHORE_CHECK_ABORT(stream) lib_take_semaphore(stream)
+#define LIB_GIVE_SEMAPHORE_CHECK_ABORT(stream) lib_give_semaphore(stream)
+#endif
+
 /****************************************************************************
  * Private Type Declarations
  ****************************************************************************/
@@ -131,7 +154,7 @@ ssize_t lib_fflush(FAR FILE *stream, bool bforce)
 
 	/* Make sure that we have exclusive access to the stream */
 
-	lib_take_semaphore(stream);
+	LIB_TAKE_SEMAPHORE_CHECK_ABORT(stream);
 
 	/* Make sure that the buffer holds valid data */
 
@@ -145,7 +168,7 @@ ssize_t lib_fflush(FAR FILE *stream, bool bforce)
 			 * remaining in the buffer."
 			 */
 
-			lib_give_semaphore(stream);
+			LIB_GIVE_SEMAPHORE_CHECK_ABORT(stream);
 			return 0;
 		}
 
@@ -166,7 +189,7 @@ ssize_t lib_fflush(FAR FILE *stream, bool bforce)
 				 */
 
 				stream->fs_flags |= __FS_FLAG_ERROR;
-				lib_give_semaphore(stream);
+				LIB_GIVE_SEMAPHORE_CHECK_ABORT(stream);
 				return -get_errno();
 			}
 
@@ -198,7 +221,7 @@ ssize_t lib_fflush(FAR FILE *stream, bool bforce)
 	 * remaining in the buffer.
 	 */
 
-	lib_give_semaphore(stream);
+	LIB_GIVE_SEMAPHORE_CHECK_ABORT(stream);
 	return stream->fs_bufpos - stream->fs_bufstart;
 #else
 	/* Return no bytes remaining in the buffer */

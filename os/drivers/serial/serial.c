@@ -408,6 +408,27 @@ static ssize_t uart_write(FAR struct file *filep, FAR const char *buffer, size_t
 	int ret;
 	char ch;
 
+	/* We may receive console writes through this path when abort. In this case, we will
+	 * need to flush console device buffer and the input data is output as hw without
+	 * serial driver write operation.
+	 */
+	extern bool abort_mode;
+	if (abort_mode && dev->isconsole) {
+		irqstate_t flags = irqsave();
+		/* flush console device buffer */
+		while (dev->xmit.head != dev->xmit.tail) {
+			up_putc(dev->xmit.buffer[dev->xmit.tail]);
+
+			if (++(dev->xmit.tail) >= dev->xmit.size) {
+				dev->xmit.tail = 0;
+			}
+		}
+		/* output buffer without serial driver write operation */
+		ret = uart_irqwrite(dev, buffer, buflen);
+		irqrestore(flags);
+		return ret;
+	}
+
 	/* We may receive console writes through this path from interrupt handlers and
 	 * from debug output in the IDLE task!  In these cases, we will need to do things
 	 * a little differently.

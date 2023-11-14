@@ -470,6 +470,17 @@ static inline void print_assert_detail(const uint8_t *filename, int lineno, stru
 
 	task_show_tcbinfo(fault_tcb);
 
+	lldbg("=============================================================================\n");
+	lldbg("Asserted TCB Info\n");
+	lldbg("=============================================================================\n");
+	/* flush stdout lib buffer and serial console buffer */
+	fflush(stdout, true);
+
+	/* If stdout lib buffer was empty, write is not called.
+	 * Call stdout write for flush serial console buffer. */
+	char buf = '\n';
+	write(stdout->fs_fd, &buf, 1);
+	lldbg("=============================================================================\n");
 #if defined(CONFIG_BOARD_CRASHDUMP)
 	board_crashdump(up_getsp(), fault_tcb, (uint8_t *)filename, lineno);
 #endif
