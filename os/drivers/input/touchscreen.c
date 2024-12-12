@@ -222,12 +222,15 @@ static ssize_t touch_write(FAR struct file *filep, FAR const char *buffer, size_
 
 static int touch_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 {
+	int ret = OK;
 	FAR struct touchscreen_s *priv;
+	struct touchscreen_cmd_s *args;
 	priv = filep->f_inode->i_private;
 	if (!priv) {
 		return -EINVAL;
 	}
 
+	touch_semtake(&priv->sem, false);
 	switch (cmd) {		
 #if defined(CONFIG_TOUCH_CALLBACK)
 		case TSIOC_SETAPPNOTIFY: {
@@ -248,12 +251,21 @@ static int touch_ioctl(FAR struct file *filep, int cmd, unsigned long arg)
 		}
 		break;
 
+		case TSIOC_CMD:
+			args = (struct touchscreen_cmd_s *)arg;
+			if (priv->ops && priv->ops->cmd) {
+				ret = priv->ops->cmd(priv, args->argc, args->argv);
+			} else {
+				ret = -EINVAL;
+			}
+		break;
 		default: {
 			touchdbg("ERROR: ioctl not found, cmd: %d\n", cmd);
 		}
 		break;
 	}
-	return OK;
+	touch_semgive(&priv->sem);
+	return ret;
 }
 
 #if !defined(CONFIG_DISABLE_POLL)
@@ -381,6 +393,7 @@ int touch_register(const char *path, struct touchscreen_s *dev)
 {
 	sem_init(&dev->sem, 0, 1);
 	sem_init(&dev->pollsem, 0, 1);
+	dev->crefs = 0;
 	dev->notify_touch = touch_notify;
 #if !defined(CONFIG_DISABLE_POLL)
 	(void)touch_semtake(&dev->pollsem, false);
