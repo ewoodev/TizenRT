@@ -1131,7 +1131,7 @@ int get_errno(void);
 #endif
 
 #ifdef CONFIG_DEBUG_TOUCH_INFO
-#define touchvdbg(format, ...)   vdbg(format, ##__VA_ARGS__)
+#define touchvdbg(format, ...)   dbg_noarg(format, ##__VA_ARGS__)
 #define touchllvdbg(format, ...) llvdbg(format, ##__VA_ARGS__)
 #else
 #define touchvdbg(...)
@@ -1884,7 +1884,7 @@ else
 #endif
 
 #ifdef CONFIG_DEBUG_TOUCH_INFO
-#define touchvdbg     vdbg
+#define touchvdbg     dbg_noarg
 #define touchllvdbg   llvdbg
 #else
 #define touchvdbg     (void)

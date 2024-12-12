@@ -129,9 +129,7 @@
 #define TOUCH_PRESSURE_VALID (1 << 5) /* Hardware provided a valid pressure */
 #define TOUCH_SIZE_VALID     (1 << 6) /* Hardware provided a valid H/W contact size */
 
-#if defined(CONFIG_TOUCH_IST415)
-#define TOUCH_MAX_POINTS 	15    /* Maximum number of simultaneous touch point supported */
-#endif
+
 /************************************************************************************
  * Public Types
  ************************************************************************************/
@@ -167,10 +165,7 @@ struct touch_point_s {
 /*
  * This structure contains the array that have information about each simultaneous touch point.
  */
-struct touch_sample_s {
-	int npoints;                   /* The number of touch points in point[] */
-	struct touch_point_s point[TOUCH_MAX_POINTS]; /* Actual dimension is npoints */
-};
+
 
 struct touchscreen_cmd_s {
 	int argc;
@@ -186,16 +181,20 @@ struct touch_set_callback_s {
 
 #endif /* CONFIG_TOUCH_CALLBACK */
 
+struct touch_point_buffer_s {
+	sem_t sem;								/* Used to control exclusive access to the buffer */
+	volatile int16_t head;					/* Index to the head [IN] index in the buffer */
+	volatile int16_t tail;					/* Index to the tail [OUT] index in the buffer */
+	int16_t size;							/* The allocated size of the buffer */
+	struct touch_point_s *buffer;			/* Pointer to the allocated buffer memory */
+};
+
 /*
  * This structure is upper level driver operations which will use lower level calls internally
  */
 struct touchscreen_ops_s {
-	int (*touch_read)(struct touchscreen_s *priv, FAR char *buffer);	/* Read touch point */
-	void (*touch_enable)(struct touchscreen_s *dev);			/* Enable touch */
-	void (*touch_disable)(struct touchscreen_s *dev);			/* Disable touch */
-
-	/* It's set to true when there is touch interrupt and set to false after data is read from device */
-	bool (*is_touchSet)(struct touchscreen_s *dev);
+	void (*touch_enable)(struct touchscreen_s *upper);			/* Enable touch */
+	void (*touch_disable)(struct touchscreen_s *upper);			/* Disable touch */
 	int (*cmd)(struct touchscreen_s *upper, int argc, char **argvc);
 };
 
@@ -207,12 +206,14 @@ struct touchscreen_ops_s {
 struct touchscreen_s {
 	sem_t sem;
 	uint8_t crefs;
-#if !defined(CONFIG_DISABLE_POLL)
+#if !defined(CONFIG_DISABLE_POLL) && defined(CONFIG_TOUCH_POLL)
 	sem_t pollsem;
 	struct pollfd *fds[CONFIG_TOUCH_NPOLLWAITERS];
 #endif
+	bool pending;
 
-	void (*notify_touch)(struct touchscreen_s *dev);
+	struct touch_point_buffer_s tp_buf;
+	sem_t waitsem;
 
 	const struct touchscreen_ops_s *ops;	/* Arch-specific operations */
 	void *priv;		/* Used by the TSP-specific logic */
@@ -229,6 +230,8 @@ struct touchscreen_s {
 /************************************************************************************
  * Public Function Prototypes
  ************************************************************************************/
+
+void touch_report(struct touchscreen_s *dev, struct touch_point_s point);
 
 #ifdef __cplusplus
 #define EXTERN extern "C"
