@@ -71,8 +71,8 @@
 /****************************************************************************
  * Private Types
  ****************************************************************************/
-#define touchvdbg dbg
-#define touchdbg dbg
+#define touchvdbg printf
+#define touchdbg printf
 /****************************************************************************
  * Private Function Prototypes
  ****************************************************************************/
@@ -1955,12 +1955,12 @@ static void ist415_display_cpc(struct ist415_dev_s *dev)
  *   This function is called by Uart Command.
  ****************************************************************************/
 
-int ist415_force_update(struct ist415_dev_s *dev, bool cal)
+int ist415_force_update(struct ist415_dev_s *dev, char *path, bool cal)
 {
 	struct firmware firmware;
 	struct ist415_fw *fw = &dev->fw;
 
-	int ret = request_firmware(&firmware, FIRMWARE_PATH_FORCE, &dev);
+	int ret = request_firmware(&firmware, path, &dev);
 	if (ret < 0) {
 		touchdbg("do not request firmware\n");
 		return -ENOENT;
@@ -2012,12 +2012,13 @@ int ist415_force_update(struct ist415_dev_s *dev, bool cal)
 }
 static void ist415_cmd_show_usage(void)
 {
-	printf("TASH>> lcd_tune <command #>\n");
+	printf("\n\nTASH>> lcd_tune <command #>\n");
 	printf("<command #>\n");
 	printf("clb : Auto Calibration\n");
 	printf("raw : Display Raw Data\n");
 	printf("cpc : Display CPC\n");
-	printf("intrdbg : Set Intr Debug\n");
+	printf("update : Update binary(force)");
+	printf("intrdbg : Set Intr Debug\n\n");
 }
 
 static int ist415_cmd(struct touchscreen_s *upper, int argc, char **argv)
@@ -2035,11 +2036,18 @@ static int ist415_cmd(struct touchscreen_s *upper, int argc, char **argv)
 		ist415_display_rawdata(dev);
 	} else if (strncmp(argv[1], "cpc", 4) == 0) {
 		ist415_display_cpc(dev);
-	} else if (strncmp(argv[1], "intdbg", 4) == 0) {
+	} else if (strncmp(argv[1], "intdbg", 7) == 0) {
 		if (argc < 4) {
+			ist415_cmd_show_usage();
 			return -EINVAL;
 		}
 		ist415_set_intr_debug(dev, strtoul(argv[2], NULL, 16), atoi(argv[3]));
+	} else if (strncmp(argv[1], "update", 4) == 0) {
+		if (argc < 3) {
+			ist415_cmd_show_usage();
+			return -EINVAL;
+		}
+		ist415_force_update(dev, argv[2], true);
 	} else {
 		return -EINVAL;
 	}
