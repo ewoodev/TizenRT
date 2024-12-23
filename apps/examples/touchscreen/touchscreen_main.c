@@ -29,19 +29,15 @@
 
 #include <tinyara/input/touchscreen.h>
 
-#if defined(CONFIG_TOUCH_POLL)
 static bool g_terminated;
-#endif
 
-#if defined(CONFIG_TOUCH_CALLBACK) 
-static struct touch_set_callback_s touch_set_callback;
-#endif
-
-#if defined(CONFIG_TOUCH_POLL)
 static void touch_test(void)
 {
 	/* read first 10 events */
 	int ret;
+	int read_size;
+	struct touch_point_s buf[15];
+	struct pollfd fds[1];
 
 	int fd = open(TOUCH_DEV_PATH, O_RDONLY);
 	if (fd < 0) {
@@ -49,24 +45,25 @@ static void touch_test(void)
 		return;
 	}
 
-	struct pollfd fds[1];
 	fds[0].fd = fd;
 	fds[0].events = POLLIN;
 
-	struct touch_sample_s buf;
 	while (!g_terminated) {
 		poll(fds, 1, 5000);
 		if (fds[0].revents & POLLIN) {
-			ret = read(fd, &buf, sizeof(struct touch_sample_s));
-			if (ret != - 1) {
-				printf("Total touch points %d\n", buf.npoints);
-				for (int i = 0; i < buf.npoints; i++) {
-					printf("coordinates id: %d, x : %d y : %d touch type: %d\n", buf.point[i].id, buf.point[i].x, buf.point[i].y, buf.point[i].flags);
-					if (buf.point[i].flags == TOUCH_DOWN) {
+			ret = read(fd, buf, sizeof(struct touch_point_s) * 15);
+			if (ret > 0) {
+				DEBUGASSERT(ret <= sizeof(struct touch_point_s) * 15);
+
+				read_size = ret / sizeof(struct touch_point_s);
+				printf("Total touch points %d\n", read_size);
+				for (int i = 0; i < read_size; i++) {
+					printf("coordinates id: %d, x : %d y : %d touch type: %d\n", buf[i].id, buf[i].x, buf[i].y, buf[i].flags);
+					if (buf[i].flags == TOUCH_DOWN) {
 						printf("Touch press event \n");
-					} else if (buf.point[i].flags == TOUCH_MOVE) {
+					} else if (buf[i].flags == TOUCH_MOVE) {
 						printf("Touch hold/move event \n");
-					} else if (buf.point[i].flags == TOUCH_UP) {
+					} else if (buf[i].flags == TOUCH_UP) {
 						printf("Touch release event \n");
 					}
 				}
@@ -75,38 +72,10 @@ static void touch_test(void)
 	}
 	close(fd);
 }
-#elif defined(CONFIG_TOUCH_CALLBACK)
-void is_touch_detected(int status)
-{
-	if (status == OK) {
-		printf("Total touch points %d\n", touch_set_callback.touch_points->npoints);
-		for (int i = 0; i < touch_set_callback.touch_points->npoints; i++) {
-			printf("TOUCH COORDINATES id: %d, x : %d y : %d touch type: %d\n", touch_set_callback.touch_points->point[i].id, touch_set_callback.touch_points->point[i].x, touch_set_callback.touch_points->point[i].y, touch_set_callback.touch_points->point[i].flags);
-			if (touch_set_callback.touch_points->point[i].flags == TOUCH_DOWN) {
-				printf("Touch press event \n");
-			} else if (touch_set_callback.touch_points->point[i].flags == TOUCH_MOVE) {
-				printf("Touch hold/move event \n");
-			} else if (touch_set_callback.touch_points->point[i].flags == TOUCH_UP) {
-				printf("Touch release event \n");
-			}
-		}
-	} else if (status == -EINVAL) {	// -EINVAL Error signifies touch_set_callback.touch_points is NULL
-		if (touch_set_callback.touch_points == NULL) {
-			touch_set_callback.touch_points = (struct touch_sample_s *)malloc(sizeof(struct touch_sample_s));
-			if (!touch_set_callback.touch_points) {
-				printf("Error: Touch point buffer memory allocation failed\n");
-			}
-		}
-	} else {
-		printf("Error: Touch detection failed\n");
-	}
-}
-#endif
 
 static int touchsceen_test_start(void)
 {
 	printf("touchscreen test start\n");
-#if defined(CONFIG_TOUCH_POLL)
 	int touch = task_create("touch", SCHED_PRIORITY_DEFAULT, 8096, (main_t)touch_test, NULL);
 	if (touch < 0) {
 		printf("Error: Failed to create touch reader, error : %d\n", get_errno());
@@ -114,38 +83,11 @@ static int touchsceen_test_start(void)
 	}
 	g_terminated = false;
 	return OK;
-#elif defined(CONFIG_TOUCH_CALLBACK)
-	int touch_fd = open(TOUCH_DEV_PATH, O_RDWR);
-	if (touch_fd < 0) {
-		printf("Error: Failed to open /dev/touch0, errno : %d\n", get_errno());
-		return ERROR;
-	}
-
-	touch_set_callback.touch_points = (struct touch_sample_s *)malloc(sizeof(struct touch_sample_s));
-	if (!touch_set_callback.touch_points) {
-		printf("Error: Touch point buffer memory allocation failed\n");
-		close(touch_fd);
-		return ERROR;
-	}
-	touch_set_callback.is_touch_detected = is_touch_detected;
-
-	if (ioctl(touch_fd, TSIOC_SETAPPNOTIFY, &touch_set_callback) != OK) {
-		printf("ERROR: Touch callback register from application to touch driver failed\n");
-		close(touch_fd);
-		free(touch_set_callback.touch_points);
-		return ERROR;
-	}
-	close(touch_fd);
-#endif
 }
 
 static int touchsceen_test_stop(void)
 {
-#if defined(CONFIG_TOUCH_POLL)
 	g_terminated = true;
-#elif defined(CONFIG_TOUCH_CALLBACK)
-	free(touch_set_callback.touch_points);
-#endif
 	printf("touchscreen test stop\n");
 	return OK;
 }
@@ -181,7 +123,6 @@ static void show_usage(void)
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
-
 
 #ifdef CONFIG_BUILD_KERNEL
 int main(int argc, FAR char *argv[])
