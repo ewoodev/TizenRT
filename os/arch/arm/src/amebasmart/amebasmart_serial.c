@@ -512,6 +512,9 @@ static uart_dev_t g_uart4port = {
 };
 #endif
 
+#ifdef CONFIG_UART4_SERIAL_CONSOLE
+static bool g_log_flush_running;
+#endif
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
@@ -1375,6 +1378,44 @@ int up_getc(void)
 	int ch;
 	ch = up_lowgetc();
 	return ch;
+}
+
+/****************************************************************************
+ * Name: up_flush_console
+ *
+ * Description:
+ *    This function is used to ensure that all characters in the UART buffer
+ *    are transmitted.
+ *
+ * Input Parameters:
+ *   None
+ *
+ * Returned Value:
+ *   None
+ *
+ ****************************************************************************/
+void up_flush_console(void)
+{
+#ifdef CONFIG_UART4_SERIAL_CONSOLE
+	uint16_t nbyte;
+	irqstate_t flags = enter_critical_section();
+
+	/* To avoid duplicated calling up_flush_console(). */
+	if (g_log_flush_running) {
+		leave_critical_section(flags);
+		return;
+	}
+	g_log_flush_running = true;
+
+	do {
+		while (!LOGUART_Ready());
+		nbyte = uart_xmitchars(&CONSOLE_DEV);
+	} while (nbyte);
+
+	g_log_flush_running = false;
+
+	leave_critical_section(flags);
+#endif
 }
 
 #else							/* USE_SERIALDRIVER */
