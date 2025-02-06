@@ -573,7 +573,7 @@ static int rtl8730e_log_uart_irq(void *Data)
 
 	u32 txempty_en = LOGUART_GET_ETPFEI(IrqEn);
 	if ((txempty_en == 0x4 && (reg_lsr & LOGUART_BIT_TP4F_EMPTY)) || (reg_lsr & LOGUART_BIT_TP4F_NOT_FULL)) {
-		uart_xmitchars(&CONSOLE_DEV);
+		(void)uart_xmitchars(&CONSOLE_DEV);
 	}
 	return 0;
 }
@@ -921,7 +921,7 @@ void rtl8730e_uart_irq(uint32_t id, SerialIrq event)
 	}
 	if (event == TxIrq) {
 		priv->tx_level = TX_FIFO_MAX;
-		uart_xmitchars(dev);
+		(void)uart_xmitchars(dev);
 		priv->tx_level = 0;
 	}
 }
