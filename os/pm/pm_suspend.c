@@ -123,6 +123,11 @@ int pm_suspend(FAR struct pm_domain_s *domain)
 
 	domain->suspend_count++;
 
+	/* If this is the first suspend for this domain, add it to suspended_domains queue */
+	if (domain->suspend_count == 1) {
+		dq_add_last(&domain->suspended_node, &g_pmglobals.suspended_domains);
+	}
+
 errout:
 	leave_critical_section(flags);
 	return ret;
