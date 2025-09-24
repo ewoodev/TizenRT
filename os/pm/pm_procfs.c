@@ -90,6 +90,15 @@
 /****************************************************************************
  * Private Types
  ****************************************************************************/
+
+/* Power level enumeration for procfs hierarchy */
+enum power_level_e {
+	POWER_LEVEL_ROOT = 1,    /* /proc/power */
+	POWER_LEVEL_DOMAINS = 2, /* /proc/power/domains */
+	POWER_LEVEL_DOMAIN = 3,  /* /proc/power/domains/{domain_name} */
+	POWER_LEVEL_INFO = 4     /* /proc/power/domains/{domain_name}/info */
+};
+
 /* This enumeration identifies all of the task/thread nodes that can be
  * accessed via the procfs file system.
  */
@@ -111,6 +120,20 @@ struct power_file_s {
 /****************************************************************************
  * Private Function Prototypes
  ****************************************************************************/
+
+/* Helper functions */
+static int power_check_path_component(const char **str, const char *name, bool is_directory);
+static int power_parse_power_level(FAR const char *relpath, FAR struct power_dir_s *dir);
+static int power_parse_domains_level(FAR const char *relpath, FAR struct power_dir_s *dir);
+static int power_parse_domain_level(FAR const char *relpath, FAR struct power_dir_s *dir);
+static int power_parse_info_level(FAR const char *relpath, FAR struct power_dir_s *dir);
+static int power_parse_state_level(FAR const char *relpath, FAR struct power_dir_s *dir);
+static void power_format_to_buffer(FAR char **buffer, size_t *buflen, size_t *totalsize, 
+                                  FAR size_t *last_read, FAR size_t *offset, 
+                                  const char *format, va_list args);
+static int power_readdir_root_level(FAR struct fs_dirent_s *dir, FAR struct power_dir_s *powerdir);
+static int power_readdir_domains_level(FAR struct fs_dirent_s *dir, FAR struct power_dir_s *powerdir);
+static int power_readdir_domain_level(FAR struct fs_dirent_s *dir, FAR struct power_dir_s *powerdir);
 
 /* File system methods */
 static int power_open(FAR struct file *filep, FAR const char *relpath, int oflags, mode_t mode);
@@ -135,18 +158,6 @@ static int power_stat(const char *relpath, FAR struct stat *buf);
 #define POWER_DOMAINS "domains"
 #define POWER_STATE   "state"
 #define POWER_INFO    "info"
-
-/*
- * Level 1 : /proc/power
- * Level 2 : /proc/power/domains
- * Level 3 : /proc/power/domains/{domain_name}
- * Level 4 : /proc/power/domains/{domain_name}/info
-*/
-
-#define POWER_LEVEL_1   1
-#define POWER_LEVEL_2   2
-#define POWER_LEVEL_3   3
-#define POWER_LEVEL_4   4
 
 /****************************************************************************
  * Public Data
@@ -177,6 +188,223 @@ const struct procfs_operations power_procfsoperations = {
  * Private Functions
  ****************************************************************************/
 
+/****************************************************************************
+ * Name: power_check_path_component
+ *
+ * Description:
+ *   Check if the path starts with the given component name and advance the pointer.
+ *
+ ****************************************************************************/
+
+static int power_check_path_component(const char **str, const char *name, bool is_directory)
+{
+	uint16_t length = strlen(name);
+	if (strncmp(*str, name, length) != 0) {
+		return ERROR;
+	}
+	*str += length;
+	if ((*str)[0] == '\0') {
+		return OK;
+	}
+	if (is_directory && ((*str)[0] == '/')) {
+		(*str)++;
+		return OK;
+	}
+	return ERROR;
+}
+
+/****************************************************************************
+ * Name: power_parse_power_level
+ *
+ * Description:
+ *   Parse the power level path (/proc/power).
+ *
+ ****************************************************************************/
+
+static int power_parse_power_level(FAR const char *relpath, FAR struct power_dir_s *dir)
+{
+	const char *str = relpath;
+	
+	/* Check relpath has "power" mount point */
+	if (power_check_path_component(&str, POWER, true) != OK) {
+		return ERROR;
+	}
+	
+	if (str[0] == '\0') {
+		dir->base.level = POWER_LEVEL_ROOT;
+		dir->base.index = 0;
+		dir->base.nentries = 2;
+		dir->dtype = DTYPE_DIRECTORY;
+		return OK;
+	}
+	
+	return ERROR;
+}
+
+/****************************************************************************
+ * Name: power_parse_domains_level
+ *
+ * Description:
+ *   Parse the domains level path (/proc/power/domains).
+ *
+ ****************************************************************************/
+
+static int power_parse_domains_level(FAR const char *relpath, FAR struct power_dir_s *dir)
+{
+	const char *str = relpath;
+	
+	/* Check relpath has "power" mount point */
+	if (power_check_path_component(&str, POWER, true) != OK) {
+		return ERROR;
+	}
+	
+	/* Check relpath has "domains" mount point */
+	if (power_check_path_component(&str, POWER_DOMAINS, true) != OK) {
+		return ERROR;
+	}
+	
+	if (str[0] == '\0') {
+		dir->base.level = POWER_LEVEL_DOMAINS;
+		dir->base.index = 0;
+		dir->base.nentries = g_pmglobals.ndomains + 1; /* +1 for "info" file */
+		dir->dtype = DTYPE_DIRECTORY;
+		return OK;
+	}
+	
+	return ERROR;
+}
+
+/****************************************************************************
+ * Name: power_parse_domain_level
+ *
+ * Description:
+ *   Parse the domain level path (/proc/power/domains/{domain_name}).
+ *
+ ****************************************************************************/
+
+static int power_parse_domain_level(FAR const char *relpath, FAR struct power_dir_s *dir)
+{
+	const char *str = relpath;
+	FAR struct pm_domain_s *domain;
+	FAR dq_entry_t *entry;
+	
+	/* Check relpath has "power" mount point */
+	if (power_check_path_component(&str, POWER, true) != OK) {
+		return ERROR;
+	}
+	
+	/* Check relpath has "domains" mount point */
+	if (power_check_path_component(&str, POWER_DOMAINS, true) != OK) {
+		return ERROR;
+	}
+	
+	/* Iterate over each domain_name till you find match */
+	for (entry = dq_peek(&g_pmglobals.domains); entry != NULL; entry = dq_next(entry)) {
+		domain = (FAR struct pm_domain_s *)entry;
+		if (power_check_path_component(&str, domain->name, true) == OK) {
+			dir->domain_ptr = domain;
+			if (str[0] == '\0') {
+				dir->base.level = POWER_LEVEL_DOMAIN;
+				dir->base.index = 0;
+				dir->base.nentries = 1; /* Only "info" file */
+				dir->dtype = DTYPE_DIRECTORY;
+				return OK;
+			}
+			return ERROR; /* Path continues but domain level should end here */
+		}
+	}
+	
+	return ERROR;
+}
+
+/****************************************************************************
+ * Name: power_parse_info_level
+ *
+ * Description:
+ *   Parse the info level path (/proc/power/domains/info or /proc/power/domains/{domain_name}/info).
+ *
+ ****************************************************************************/
+
+static int power_parse_info_level(FAR const char *relpath, FAR struct power_dir_s *dir)
+{
+	const char *str = relpath;
+	FAR struct pm_domain_s *domain;
+	FAR dq_entry_t *entry;
+	
+	/* Check relpath has "power" mount point */
+	if (power_check_path_component(&str, POWER, true) != OK) {
+		return ERROR;
+	}
+	
+	/* Check relpath has "domains" mount point */
+	if (power_check_path_component(&str, POWER_DOMAINS, true) != OK) {
+		return ERROR;
+	}
+	
+	/* Check if there's a domain name before "info" */
+	for (entry = dq_peek(&g_pmglobals.domains); entry != NULL; entry = dq_next(entry)) {
+		domain = (FAR struct pm_domain_s *)entry;
+		if (power_check_path_component(&str, domain->name, true) == OK) {
+			dir->domain_ptr = domain;
+			break;
+		}
+	}
+	
+	/* Check relpath has "info" mount point */
+	if (power_check_path_component(&str, POWER_INFO, false) != OK) {
+		return ERROR;
+	}
+	
+	if (str[0] == '\0') {
+		if (dir->domain_ptr) {
+			/* Info for a specific domain */
+			dir->base.level = POWER_LEVEL_INFO;
+		} else {
+			/* General domains info */
+			dir->base.level = POWER_LEVEL_DOMAIN;
+		}
+		dir->base.index = 0;
+		dir->base.nentries = 0;
+		dir->dtype = DTYPE_FILE;
+		return OK;
+	}
+	
+	return ERROR;
+}
+
+/****************************************************************************
+ * Name: power_parse_state_level
+ *
+ * Description:
+ *   Parse the state level path (/proc/power/state).
+ *
+ ****************************************************************************/
+
+static int power_parse_state_level(FAR const char *relpath, FAR struct power_dir_s *dir)
+{
+	const char *str = relpath;
+	
+	/* Check relpath has "power" mount point */
+	if (power_check_path_component(&str, POWER, true) != OK) {
+		return ERROR;
+	}
+	
+	/* Check relpath has "state" mount point */
+	if (power_check_path_component(&str, POWER_STATE, false) != OK) {
+		return ERROR;
+	}
+	
+	if (str[0] == '\0') {
+		dir->base.level = POWER_LEVEL_DOMAINS;
+		dir->base.index = 0;
+		dir->base.nentries = 0;
+		dir->dtype = DTYPE_FILE;
+		return OK;
+	}
+	
+	return ERROR;
+}
+
 static void power_read_domain_info(FAR struct pm_domain_s *domain, void (*readprint)(const char *, ...))
 {
 	if (domain) {
@@ -200,6 +428,130 @@ static void power_read_domains(void (*readprint)(const char *, ...))
 	}
 }
 
+/****************************************************************************
+ * Name: power_format_to_buffer
+ *
+ * Description:
+ *   Format output to buffer with offset handling for sequential reads.
+ *
+ ****************************************************************************/
+
+static void power_format_to_buffer(FAR char **buffer, size_t *buflen, size_t *totalsize, 
+                                  FAR size_t *last_read, FAR size_t *offset, 
+                                  const char *format, va_list args)
+{
+	size_t copysize;
+	
+	copysize = vsnprintf(*buffer, *buflen, format, args);
+	
+	/* Take min of buflen and copysize */
+	if (*buflen < copysize) {
+		copysize = *buflen - 1;
+	}
+	
+	/* No need to copy information if we have already read information earlier */
+	if (copysize <= *last_read) {
+		*last_read -= copysize;
+		return;
+	}
+	
+	/* Overwrite the last read information */
+	if (*last_read) {
+		copysize -= *last_read;
+		strncpy(*buffer, *buffer + *last_read, copysize);
+		*last_read = 0;
+	}
+	
+	/* Increment the buffer pointer */
+	*buflen -= copysize;
+	*buffer += copysize;
+	*totalsize += copysize;
+	*offset += copysize;
+}
+
+/****************************************************************************
+ * Name: power_readdir_root_level
+ *
+ * Description:
+ *   Handle readdir for power root level (/proc/power).
+ *
+ ****************************************************************************/
+
+static int power_readdir_root_level(FAR struct fs_dirent_s *dir, FAR struct power_dir_s *powerdir)
+{
+	int index = powerdir->base.index;
+
+	switch (index) {
+	case 0:
+		dir->fd_dir.d_type = DTYPE_DIRECTORY;
+		snprintf(dir->fd_dir.d_name, sizeof(dir->fd_dir.d_name), POWER_DOMAINS);
+		powerdir->base.index++;
+		break;
+	case 1:
+		dir->fd_dir.d_type = DTYPE_FILE;
+		snprintf(dir->fd_dir.d_name, sizeof(dir->fd_dir.d_name), POWER_STATE);
+		powerdir->base.index++;
+		break;
+	default:
+		return -ENOENT;
+	}
+
+	return OK;
+}
+
+/****************************************************************************
+ * Name: power_readdir_domains_level
+ *
+ * Description:
+ *   Handle readdir for domains level (/proc/power/domains).
+ *
+ ****************************************************************************/
+
+static int power_readdir_domains_level(FAR struct fs_dirent_s *dir, FAR struct power_dir_s *powerdir)
+{
+	FAR struct pm_domain_s *domain;
+	FAR dq_entry_t *entry;
+	int index = powerdir->base.index;
+
+	if (index == g_pmglobals.ndomains) {
+		/* Last entry is the "info" file */
+		dir->fd_dir.d_type = DTYPE_FILE;
+		snprintf(dir->fd_dir.d_name, sizeof(dir->fd_dir.d_name), POWER_INFO);
+	} else {
+		/* Iterate to the current domain index */
+		entry = dq_peek(&g_pmglobals.domains);
+		for (int i = 0; i < index && entry != NULL; i++) {
+			entry = dq_next(entry);
+		}
+		if (entry) {
+			domain = (FAR struct pm_domain_s *)entry;
+			dir->fd_dir.d_type = DTYPE_DIRECTORY;
+			snprintf(dir->fd_dir.d_name, sizeof(dir->fd_dir.d_name), "%s", domain->name);
+		} else {
+			/* Should not happen if nentries is correct */
+			return -ENOENT;
+		}
+	}
+	powerdir->base.index++;
+	return OK;
+}
+
+/****************************************************************************
+ * Name: power_readdir_domain_level
+ *
+ * Description:
+ *   Handle readdir for domain level (/proc/power/domains/{domain_name}).
+ *
+ ****************************************************************************/
+
+static int power_readdir_domain_level(FAR struct fs_dirent_s *dir, FAR struct power_dir_s *powerdir)
+{
+	dir->fd_dir.d_type = DTYPE_FILE;
+	snprintf(dir->fd_dir.d_name, sizeof(dir->fd_dir.d_name), POWER_INFO);
+	powerdir->base.index++;
+	return OK;
+}
+
 static void power_read_state(void (*readprint)(const char *, ...))
 {
 	enum pm_state_e pm_state;
@@ -218,94 +570,46 @@ static void power_read_state(void (*readprint)(const char *, ...))
 
 static int power_find_dirref(FAR const char *relpath, FAR struct power_dir_s *dir)
 {
-	const char *str;
-	FAR struct pm_domain_s *domain;
-	FAR dq_entry_t *entry;
 	irqstate_t flags;
+	int ret;
 
-	/* Function to check path is starting with given name */
-	int checkStart(const char *name, bool isDirectory) {
-		uint16_t length = strlen(name);
-		if (strncmp(str, name, length) != 0) {
-			return ERROR;
-		}
-		str += length;
-		if (str[0] == '\0') {
-			return OK;
-		}
-		if (isDirectory && (str[0] == '/')) {
-			str++;
-			return OK;
-		}
-		return ERROR;
-	}
+	DEBUGASSERT(relpath && dir);
 
-	str = relpath;
 	dir->domain_ptr = NULL;
 
 	flags = enter_critical_section(); /* Protect domain list access */
 
-	/* Check relpath has "power" mount point */
-	if (checkStart(POWER, true) == OK) {
-		if (str[0] == '\0') {
-			dir->base.level = POWER_LEVEL_1;
-			dir->base.index = 0;
-			dir->base.nentries = 2;
-			dir->dtype = DTYPE_DIRECTORY;
-			leave_critical_section(flags);
-			return OK;
-		}
-		/* Check relpath has "domains" mount point */
-		if (checkStart(POWER_DOMAINS, true) == OK) {
-			if (str[0] == '\0') {
-				dir->base.level = POWER_LEVEL_2;
-				dir->base.index = 0;
-				dir->base.nentries = g_pmglobals.ndomains + 1; /* +1 for "info" file */
-				dir->dtype = DTYPE_DIRECTORY;
-				leave_critical_section(flags);
-				return OK;
-			}
-			/* Iterate over each domain_name till you find match */
-			for (entry = dq_peek(&g_pmglobals.domains); entry != NULL; entry = dq_next(entry)) {
-				domain = (FAR struct pm_domain_s *)entry;
-				if (checkStart(domain->name, true) == OK) {
-					dir->domain_ptr = domain;
-					if (str[0] == '\0') {
-						dir->base.level = POWER_LEVEL_3;
-						dir->base.index = 0;
-						dir->base.nentries = 1; /* Only "info" file */
-						dir->dtype = DTYPE_DIRECTORY;
-						leave_critical_section(flags);
-						return OK;
-					}
-					break; /* Found domain, break to check for "info" */
-				}
-			}
-			/* Check relpath has "info" mount point (can be under domains or a specific domain) */
-			if (checkStart(POWER_INFO, false) == OK) {
-				if (dir->domain_ptr) {
-					/* Info for a specific domain */
-					dir->base.level = POWER_LEVEL_4;
-				} else {
-					/* General domains info */
-					dir->base.level = POWER_LEVEL_3;
-				}
-				dir->base.index = 0;
-				dir->base.nentries = 0;
-				dir->dtype = DTYPE_FILE;
-				leave_critical_section(flags);
-				return OK;
-			}
-		/* Check relpath has "state" mount point */
-		} else if (checkStart(POWER_STATE, false) == OK) {
-			dir->base.level = POWER_LEVEL_2;
-			dir->base.index = 0;
-			dir->base.nentries = 0;
-			dir->dtype = DTYPE_FILE;
-			leave_critical_section(flags);
-			return OK;
-		}
+	/* Try to parse path at different levels */
+	ret = power_parse_power_level(relpath, dir);
+	if (ret == OK) {
+		leave_critical_section(flags);
+		return OK;
 	}
+
+	ret = power_parse_domains_level(relpath, dir);
+	if (ret == OK) {
+		leave_critical_section(flags);
+		return OK;
+	}
+
+	ret = power_parse_domain_level(relpath, dir);
+	if (ret == OK) {
+		leave_critical_section(flags);
+		return OK;
+	}
+
+	ret = power_parse_info_level(relpath, dir);
+	if (ret == OK) {
+		leave_critical_section(flags);
+		return OK;
+	}
+
+	ret = power_parse_state_level(relpath, dir);
+	if (ret == OK) {
+		leave_critical_section(flags);
+		return OK;
+	}
+
 	leave_critical_section(flags);
 	fdbg("Invalid Path : Failed to find path %s \n", relpath);
 	return -ENOENT;
@@ -371,53 +675,54 @@ static int power_close(FAR struct file *filep)
 static ssize_t power_read(FAR struct file *filep, FAR char *buffer, size_t buflen)
 {
 	FAR struct power_file_s *priv;
-	size_t totalsize;
 	FAR struct pm_domain_s *domain_ptr;
-	int last_read;
+	size_t totalsize;
+	size_t last_read;
+	va_list args;
 
-	/* Function to copy domain information into buffer */
+	/* Callback function for power_read_xxx functions */
 	void readprint(const char *format, ...) {
-		size_t copysize;
-		va_list args;
 		va_start(args, format);
-		copysize = vsnprintf(buffer, buflen, format, args);
+		power_format_to_buffer(&buffer, &buflen, &totalsize, &last_read, &priv->offset, format, args);
 		va_end(args);
-		/* Take min of buflen and copysize */
-		if (buflen < copysize) {
-			copysize = buflen - 1;
-		}
-		/* No need to copy information if we have already read information earlier */
-		if (copysize <= last_read) {
-			last_read -= copysize;
-			return;
-		}
-		/* Overwrite the last read information */
-		if (last_read) {
-			copysize -= last_read;
-			strncpy(buffer, buffer + last_read, copysize);
-			last_read = 0;
-		}
-		/* Increment the buffer pointer */
-		buflen -= copysize;
-		buffer += copysize;
-		totalsize += copysize;
-		priv->offset += copysize;
 	}
 
 	priv = (FAR struct power_file_s *)filep->f_priv;
+	DEBUGASSERT(priv);
+
 	domain_ptr = priv->dir.domain_ptr;
 	totalsize = 0;
 	last_read = priv->offset;
 
-	/* Read the content of "{domain_name}/info" */
-	if ((priv->dir.base.level == POWER_LEVEL_4) && (priv->dir.base.index == 0) && (domain_ptr != NULL)) {
-		power_read_domain_info(domain_ptr, readprint);
-	/* Read the content of "domains/info" (general list of domains) */
-	} else if ((priv->dir.base.level == POWER_LEVEL_3) && (priv->dir.base.index == 0) && (domain_ptr == NULL)) {
-		power_read_domains(readprint);
-	/* Read the content of "power/state" */
-	} else if ((priv->dir.base.level == POWER_LEVEL_2) && (priv->dir.base.index == 0)) {
+	/* Determine what to read based on path level and context */
+	if (priv->dir.base.index != 0) {
+		/* Invalid index */
+		return 0;
+	}
+
+	switch (priv->dir.base.level) {
+	case POWER_LEVEL_INFO:
+		/* Read the content of "{domain_name}/info" */
+		if (domain_ptr != NULL) {
+			power_read_domain_info(domain_ptr, readprint);
+		}
+		break;
+
+	case POWER_LEVEL_DOMAIN:
+		/* Read the content of "domains/info" (general list of domains) */
+		if (domain_ptr == NULL) {
+			power_read_domains(readprint);
+		}
+		break;
+
+	case POWER_LEVEL_DOMAINS:
+		/* Read the content of "power/state" */
 		power_read_state(readprint);
+		break;
+
+	default:
+		/* Invalid level for read operation */
+		break;
 	}
 
 	/* Indicate we have already provided all the data */
@@ -556,74 +861,41 @@ static int power_closedir(FAR struct fs_dirent_s *dir)
 static int power_readdir(struct fs_dirent_s *dir)
 {
 	FAR struct power_dir_s *powerdir;
-	FAR struct pm_domain_s *domain;
-	FAR dq_entry_t *entry;
-	int index;
 	irqstate_t flags;
+	int ret;
 
 	DEBUGASSERT(dir && dir->u.procfs);
 	powerdir = dir->u.procfs;
 
 	/* Have we reached the end of the directory */
-	index = powerdir->base.index;
-	if (index >= powerdir->base.nentries) {
+	if (powerdir->base.index >= powerdir->base.nentries) {
 		return -ENOENT;
 	}
 
 	flags = enter_critical_section(); /* Protect domain list access */
 
+	/* Dispatch to appropriate level handler */
 	switch (powerdir->base.level) {
-		/* List the content of "power" directory */
-	case POWER_LEVEL_1:
-		switch (index) {
-		case 0:
-			dir->fd_dir.d_type = DTYPE_DIRECTORY;
-			snprintf(dir->fd_dir.d_name, sizeof(dir->fd_dir.d_name), POWER_DOMAINS);
-			powerdir->base.index++;
-			break;
-		case 1:
-			dir->fd_dir.d_type = DTYPE_FILE;
-			snprintf(dir->fd_dir.d_name, sizeof(dir->fd_dir.d_name), POWER_STATE);
-			powerdir->base.index++;
-			break;
-		}
+	case POWER_LEVEL_ROOT:
+		ret = power_readdir_root_level(dir, powerdir);
 		break;
-	/* List the content of "domains" directory */
-	case POWER_LEVEL_2:
-		if (index == g_pmglobals.ndomains) { /* Last entry is the "info" file */
-			dir->fd_dir.d_type = DTYPE_FILE;
-			snprintf(dir->fd_dir.d_name, sizeof(dir->fd_dir.d_name), POWER_INFO);
-		} else {
-			/* Iterate to the current domain index */
-			entry = dq_peek(&g_pmglobals.domains);
-			for (int i = 0; i < index && entry != NULL; i++) {
-				entry = dq_next(entry);
-			}
-			if (entry) {
-				domain = (FAR struct pm_domain_s *)entry;
-				dir->fd_dir.d_type = DTYPE_DIRECTORY;
-				snprintf(dir->fd_dir.d_name, sizeof(dir->fd_dir.d_name), "%s", domain->name);
-			} else {
-				/* Should not happen if nentries is correct */
-				leave_critical_section(flags);
-				return -ENOENT;
-			}
-		}
-		powerdir->base.index++;
+
+	case POWER_LEVEL_DOMAINS:
+		ret = power_readdir_domains_level(dir, powerdir);
 		break;
-	/* List the content of "{domain_name}" directory*/
-	case POWER_LEVEL_3:
-		dir->fd_dir.d_type = DTYPE_FILE;
-		snprintf(dir->fd_dir.d_name, sizeof(dir->fd_dir.d_name), POWER_INFO);
-		powerdir->base.index++;
+
+	case POWER_LEVEL_DOMAIN:
+		ret = power_readdir_domain_level(dir, powerdir);
 		break;
+
 	default:
-		fdbg("Invalid directory level\n");
-		leave_critical_section(flags);
-		return -ENOENT;
+		fdbg("Invalid directory level: %d\n", powerdir->base.level);
+		ret = -ENOENT;
+		break;
 	}
+
 	leave_critical_section(flags);
-	return OK;
+	return ret;
 }
 
 /****************************************************************************
