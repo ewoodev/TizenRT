@@ -143,10 +143,7 @@ int pthread_sem_take(sem_t *sem)
 			/* Handle the special case where the semaphore wait was
 			 * awakened by the receipt of a signal.
 			 */
-
-			if (errcode != EINTR) {
-				return errcode;
-			}
+			DEBUGASSERT(errcode == EINTR);
 		}
 		return OK;
 	} else {
