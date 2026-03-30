@@ -398,7 +398,12 @@ def make_common_binary_header():
 ###########################################################################
 def make_resource_binary_header():
 
+    # signing = util.get_value_from_file(cfg_path, "CONFIG_BINARY_SIGNING=").replace('"','').replace('\n','')
+    # if signing != "None" :
+    #     SIZE_OF_TOTAL = 4096 - 192 #/////////////////////////////////////////////
+    # else :
     SIZE_OF_TOTAL = 4096
+
     SIZE_OF_HEADERSIZE = 2
     SIZE_OF_BINVER = 4
     SIZE_OF_BINSIZE = 4

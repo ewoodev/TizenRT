@@ -507,7 +507,6 @@ int romfs_hwconfigure(struct romfs_mountpt_s *rm)
 	}
 
 	/* Allocate the device cache buffer for normal sector accesses */
-
 	rm->rm_buffer = (uint8_t *)kmm_malloc(rm->rm_hwsectorsize);
 	if (!rm->rm_buffer) {
 		return -ENOMEM;
@@ -535,6 +534,7 @@ int romfs_fsconfigure(struct romfs_mountpt_s *rm)
 	/* Then get information about the ROMFS filesystem on the devices managed
 	 * by this block driver.  Read sector zero which contains the volume header.
 	 */
+
 
 	ndx = romfs_devcacheread(rm, 0);
 	if (ndx < 0) {

@@ -421,7 +421,11 @@ int configure_mtd_partitions(struct mtd_dev_s *mtd, int minor, partition_info_t 
 #endif
 #ifdef CONFIG_RESOURCE_FS
 		if (!strncmp(types, "resource,", 9)) {
-			int nblocks = geo.erasesize / geo.blocksize;
+			int headersize = RESOURCE_HEADER_SIZE;
+			int nblocks = headersize % geo.erasesize == 0 ?  headersize / geo.blocksize : (headersize + geo.erasesize) / geo.blocksize;
+
+			lldbg("size !!!!!!!!!!!!!!!! %d %d %d\n", geo.erasesize, geo.blocksize, nblocks);
+
 			/* Make mtd dev to access resource fs. It starts from offset + erasesize (4K). */
 			ret = make_resource_mtd_partition(mtd, partoffset + nblocks, partsize / geo.blocksize - nblocks, g_partno);
 			if (ret != OK) {

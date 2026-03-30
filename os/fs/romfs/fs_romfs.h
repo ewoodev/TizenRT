@@ -74,10 +74,22 @@
 
 /* Volume header (multi-byte values are big-endian) */
 
-#define ROMFS_VHDR_ROM1FS   0	/*  0-7:  "-rom1fs-" */
-#define ROMFS_VHDR_SIZE     8	/*  8-11: Number of accessible bytes in this fs. */
-#define ROMFS_VHDR_CHKSUM  12	/* 12-15: Checksum of the first 512 bytes. */
-#define ROMFS_VHDR_VOLNAME 16	/* 16-..: Zero terminated volume name, padded to
+#ifdef CONFIG_RESOURCE_FS
+#define RESOURCE_HEADER_SIZE             4096
+#else
+#define RESOURCE_HEADER_SIZE             0
+#endif
+
+#if defined(CONFIG_RESOURCE_BINARY_SIGNING) && CONFIG_USER_SIGN_PREPEND_SIZE > 0
+#define RESOURCE_SIGNING_HEADER_SIZE CONFIG_USER_SIGN_PREPEND_SIZE
+#else
+#define RESOURCE_SIGNING_HEADER_SIZE 0
+#endif
+
+#define ROMFS_VHDR_ROM1FS   (RESOURCE_SIGNING_HEADER_SIZE + 0)		/*  0-7:  "-rom1fs-" */
+#define ROMFS_VHDR_SIZE     (RESOURCE_SIGNING_HEADER_SIZE + 8)		/*  8-11: Number of accessible bytes in this fs. */
+#define ROMFS_VHDR_CHKSUM   (RESOURCE_SIGNING_HEADER_SIZE + 12)	/* 12-15: Checksum of the first 512 bytes. */
+#define ROMFS_VHDR_VOLNAME  (RESOURCE_SIGNING_HEADER_SIZE + 16)	/* 16-..: Zero terminated volume name, padded to
 								 *        16 byte boundary. */
 
 #define ROMFS_VHDR_MAGIC   "-rom1fs-"
