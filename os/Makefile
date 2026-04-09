@@ -54,8 +54,18 @@
 # Makefile.  If you already know the Makefile that you want, you can skip
 # this nonsense using:
 #
-#   make -f Makefile.unix
+#   make -f Makefile.os
 #
 
 -include .config
-include Makefile.unix
+include Makefile.os
+
+.PHONY: os_all apps_all
+
+all: os_all apps_all
+
+os_all:
+	$(MAKE) -f Makefile.os all
+
+apps_all:
+	$(MAKE) -f Makefile.apps all
