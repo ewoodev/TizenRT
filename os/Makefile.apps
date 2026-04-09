@@ -18,4 +18,4 @@ app_all:
 	$(MAKE) -C ../loadable_apps TOPDIR="$(CURDIR)" LOADABLEDIR="../loadable_apps" LIBRARIES_DIR="../build/output/libraries" all KERNEL=n
 
 common_finalize:
-	$(MAKE) -f Makefile.os post_common
+	$(MAKE) -f Makefile.os post_user
