@@ -539,7 +539,9 @@ endif
 
 post: post_user post_kernel
 
-post_user:
+post_user: post_user_binaries post_user_resource
+
+post_user_binaries:
 ifeq ($(CONFIG_APP_BINARY_SEPARATION),y)
 	$(Q) mkdir -p $(OUTBIN_DIR)/user
 ifneq ($(CONFIG_SUPPORT_COMMON_BINARY),y)
@@ -564,6 +566,8 @@ ifeq ($(CONFIG_BINARY_SIGNING),y)
 	$(Q) $(call MAKE_USER_SIGNING)
 endif
 endif
+
+post_user_resource:
 ifeq ($(CONFIG_RESOURCE_FS),y)
 	$(Q) $(TOPDIR)/../tools/fs/mkromfsimg.sh $(TOPDIR)/../resource ../build/output/bin/resourcefs.img
 	$(Q) $(TOPDIR)/tools/mkbinheader.py $(OUTBIN_DIR)/resourcefs.img resource
