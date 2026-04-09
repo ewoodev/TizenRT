@@ -21,13 +21,22 @@ import os
 import sys
 import string
 import subprocess
+import argparse
 import config_util as util
 
-os_folder = os.path.dirname(__file__) + '/..'
-cfg_file = os_folder + '/.config'
+os_folder = os.path.abspath(os.path.dirname(__file__) + '/..')
+
+parser = argparse.ArgumentParser(description='Generate ld scripts for separated binaries')
+parser.add_argument('--config', dest='config_path', default=None,
+                    help='Path to .config file (default: os/.config)')
+parser.add_argument('--outdir', dest='output_dir', default=None,
+                    help='Output directory for generated .ld files (default: build/output/bin)')
+args = parser.parse_args()
+
+cfg_file = os.path.abspath(args.config_path) if args.config_path else os.path.join(os_folder, '.config')
 tool_folder = os_folder + '/tools'
 build_folder = os_folder + '/../build'
-output_folder = build_folder + '/output/bin/'
+output_folder = os.path.abspath(args.output_dir) + '/' if args.output_dir else build_folder + '/output/bin/'
 
 # Create output directory if it doesnt exist
 if not os.path.exists(output_folder):
