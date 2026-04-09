@@ -1,0 +1,21 @@
+###########################################################################
+#
+# Copyright 2026 Samsung Electronics All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+#
+###########################################################################
+
+.PHONY: all common_prepare app_all common_finalize
+
+all: common_prepare app_all common_finalize
+
+common_prepare:
+	$(MAKE) -f Makefile.os pass1deps
+
+app_all:
+	$(MAKE) -f Makefile.unix pass1
+
+common_finalize:
+	$(MAKE) -f Makefile.os post_common
