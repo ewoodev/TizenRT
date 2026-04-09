@@ -25,7 +25,25 @@ import string
 import shutil
 import config_util as util
 
-cfg_path = os.path.dirname(__file__) + '/../.config'
+def _parse_optional_args(argv):
+    cfg = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '.config'))
+    parsed = [argv[0]]
+    idx = 1
+
+    while idx < len(argv):
+        if argv[idx] == '--config':
+            if idx + 1 >= len(argv):
+                print("Error : --config requires a path")
+                sys.exit(1)
+            cfg = os.path.abspath(argv[idx + 1])
+            idx += 2
+            continue
+        parsed.append(argv[idx])
+        idx += 1
+
+    return cfg, parsed
+
+cfg_path, sys.argv = _parse_optional_args(sys.argv)
 
 # User Binary Format
 ELF = 1
@@ -464,4 +482,3 @@ elif binary_type == 'resource' :
 else : # Not supported.
     print("Error : Not supported Binary Type")
     sys.exit(1)
-
