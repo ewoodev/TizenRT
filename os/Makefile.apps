@@ -15,7 +15,7 @@ common_prepare:
 	$(MAKE) -f Makefile.os pass1deps
 
 app_all:
-	$(MAKE) -f Makefile.unix pass1
+	$(MAKE) -C ../loadable_apps TOPDIR="$(CURDIR)" LOADABLEDIR="../loadable_apps" LIBRARIES_DIR="../build/output/libraries" all KERNEL=n
 
 common_finalize:
 	$(MAKE) -f Makefile.os post_common
