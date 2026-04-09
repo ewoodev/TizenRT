@@ -537,7 +537,9 @@ define PREPARE_APP
 endef
 endif
 
-post:
+post: post_user post_kernel
+
+post_user:
 ifeq ($(CONFIG_APP_BINARY_SEPARATION),y)
 	$(Q) mkdir -p $(OUTBIN_DIR)/user
 ifneq ($(CONFIG_SUPPORT_COMMON_BINARY),y)
@@ -567,6 +569,8 @@ ifeq ($(CONFIG_RESOURCE_FS),y)
 	$(Q) $(TOPDIR)/tools/mkbinheader.py $(OUTBIN_DIR)/resourcefs.img resource
 	$(Q) $(TOPDIR)/tools/mkchecksum.py $(OUTBIN_DIR)/resourcefs.img
 endif
+
+post_kernel:
 	$(Q) echo "Start the Board Specific Work for Binary"
 	$(Q) $(call MAKE_BOARD_SPECIFIC_BIN, $(BIN_EXE), $(BIN_EXT))
 	$(Q) $(call MAKE_SAMSUNG_HEADER, $(BIN_EXT))
