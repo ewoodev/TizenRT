@@ -464,7 +464,7 @@ ifeq ($(CONFIG_SUPPORT_COMMON_BINARY),y)
 ifeq ($(CONFIG_ELF),y)
 	$(Q) $(LD) -r -o $(OUTBIN_DIR)/$(CONFIG_COMMON_BINARY_NAME) -T $(TOPDIR)/userspace/userspace_apps.ld -L $(LIBRARIES_DIR) --start-group $(USERLIBS) $(LIBGCC) $(LIBSUPXX) --end-group $$(cat $(OUTBIN_DIR)/lib_symbols.txt)
 else
-	$(Q) $(TOPDIR)/tools/mkldscript.py
+	$(Q) $(TOPDIR)/tools/mkldscript.py common
 	$(Q) $(MAKE) -C userspace CFLAGS="$(CFLAGS)" TOPDIR="$(TOPDIR)" common_obj
 ifneq ($(CONFIG_XIP_ELF_WARCHIVE), y)
 	$(Q) $(MAKE) -C $(LOADABLE_APPDIR) TOPDIR="$(TOPDIR)" LOADABLEDIR="${LOADABLE_APPDIR}" LIBRARIES_DIR="$(LIBRARIES_DIR)" USERLIBS="$(USERLIBS)" undefsym KERNEL=n
@@ -584,6 +584,7 @@ endif
 
 	$(Q) python ./tools/set_bininfo.py
 	$(Q) python ./tools/convert_binary.py "$(BIN_EXT)" "$(OBJCOPY)" "$(OBJCOPYARGS)" "$(KERNEL_START)"
+	$(Q) python ./tools/mkloadablebundle.py
 
 ifeq ($(CONFIG_USE_BP),y)
 	$(Q) $(call MAKE_BOOTPARAM)
