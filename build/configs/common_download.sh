@@ -157,6 +157,7 @@ function get_executable_name()
 		ota) echo "${OTA}.bin";;
 		app1) echo "${APP1_BIN_NAME}";;
 		app2) echo "${APP2_BIN_NAME}";;
+		user) echo "${USER_BIN_NAME}";;
 		loadparam) echo "$1";;
 		common) echo "${COMMON_BIN_NAME}";;
 		zoneinfo) echo "zoneinfo.img";;
@@ -286,6 +287,49 @@ function get_partition_second_sizes()
 	echo $sizes_str
 }
 
+function is_xip_user_bundle_enabled()
+{
+	[[ "${CONFIG_XIP_ELF}" == "y" && -n "${USER_BIN_NAME}" && -f "${BIN_PATH}/${USER_BIN_NAME}" ]]
+}
+
+function is_user_loadable_partition()
+{
+	[[ "$1" == "common" || "$1" == "app1" || "$1" == "app2" ]]
+}
+
+function get_user_slot_start_index()
+{
+	for idx in ${!parts[@]}; do
+		if [[ "${parts[$idx]}" == "common" || "${parts[$idx]}" == "app1" ]]; then
+			echo $idx
+			return
+		fi
+	done
+
+	echo -1
+}
+
+function get_user_slot_size()
+{
+	local start_idx
+	local total_size=0
+	start_idx=$(get_user_slot_start_index)
+
+	if [[ "${start_idx}" -lt 0 ]]; then
+		echo 0
+		return
+	fi
+
+	for (( idx=start_idx; idx<${#parts[@]}; idx++ )); do
+		if ! is_user_loadable_partition "${parts[$idx]}"; then
+			break
+		fi
+		total_size=$((total_size + ${sizes[$idx]}))
+	done
+
+	echo "${total_size}"
+}
+
 download_specific_partitions()
 {
 	local args=("$@")
@@ -303,6 +347,44 @@ download_specific_partitions()
 			if [[ -n "${BOOTPARAM}" ]]; then
 				args=($@ "bootparam")
 			fi
+		fi
+
+		if [[ ${TARGET,,} == "user" ]]; then
+			if ! is_xip_user_bundle_enabled; then
+				echo "XIP user bundle is not available. Build the XIP user images first."
+				exit 1
+			fi
+
+			partidx=$(get_user_slot_start_index)
+			if [[ "${partidx}" -lt 0 ]]; then
+				echo "No loadable user slot found"
+				exit 1
+			fi
+
+			exe_name=$(get_executable_name user)
+			if [[ "${IS_BOARD_SUPPORTED_BATCH}" -eq 1 ]]; then
+				batch_args+=(
+					"${offsets[$partidx]}"
+					"${exe_name}"
+					"$(get_user_slot_size)"
+					"user"
+				)
+			else
+				echo ""
+				echo "============================="
+				echo "Downloading user bundle"
+				echo "============================="
+				board_download $TTYDEV ${offsets[$partidx]} ${exe_name} "$(get_user_slot_size)" "user" $TARGET
+				echo ""
+				echo "Download $exe_name COMPLETE!"
+			fi
+			continue
+		fi
+
+		if [[ "${CONFIG_XIP_ELF}" == "y" ]] && is_user_loadable_partition "${TARGET,,}"; then
+			echo "XIP loadable images do not support downloading ${TARGET} alone."
+			echo "Use \"make download user\" instead."
+			exit 1
 		fi
 
 		partidx=$(get_partition_index ${TARGET})
@@ -363,6 +445,7 @@ download_all()
 	found_app2=false
 	found_common=false
 	found_resource=false
+	found_user=false
 
 	for partidx in ${!parts[@]}; do
 
@@ -413,6 +496,41 @@ download_all()
 			fi
 			found_resource=true
 		fi
+
+		if is_xip_user_bundle_enabled && is_user_loadable_partition "${parts[$partidx]}"; then
+			if [[ $found_user == true ]]; then
+				continue
+			fi
+
+			first_user_idx=$(get_user_slot_start_index)
+			if [[ "${partidx}" -ne "${first_user_idx}" ]]; then
+				continue
+			fi
+
+			found_user=true
+			found_common=true
+			found_app1=true
+			found_app2=true
+			exe_name=$(get_executable_name user)
+
+			if [[ "${IS_BOARD_SUPPORTED_BATCH}" -eq 1 ]]; then
+				batch_args+=(
+					"${offsets[$first_user_idx]}"
+					"${exe_name}"
+					"$(get_user_slot_size)"
+					"user"
+				)
+			else
+				echo ""
+				echo "=========================="
+				echo "Downloading user bundle"
+				echo "=========================="
+
+				board_download $TTYDEV ${offsets[$first_user_idx]} ${exe_name} "$(get_user_slot_size)" "user" "ALL"
+			fi
+			continue
+		fi
+
 		exe_name=$(get_executable_name ${parts[$partidx]})
 		if [[ "No Binary Match" = "${exe_name}" ]];then
 			continue
@@ -614,6 +732,9 @@ if test $# -eq 0; then
 fi
 
 uniq_parts=($(printf "%s\n" "${parts[@]}" | sort -u));
+if is_xip_user_bundle_enabled; then
+	uniq_parts+=("user")
+fi
 
 #Validate arguments
 for i in ${cmd_args[@]};do

@@ -68,7 +68,7 @@ function pre_download()
 			APP_NUM=$(($APP_NUM+1))
 			cp -p ${BIN_PATH}/${APP2_BIN_NAME} ${IMG_TOOL_PATH}/${APP2_BIN_NAME}
 		fi
-		if [ ${APP_NUM} -eq 0 ]; then
+		if [ ${APP_NUM} -eq 0 ] && ! test -f "${BIN_PATH}/${USER_BIN_NAME}"; then
 			echo "No User Binary."
 			post_download
 			exit 1
@@ -76,6 +76,9 @@ function pre_download()
 	fi
 	if test -f "${BIN_PATH}/${COMMON_BIN_NAME}"; then
 		cp -p ${BIN_PATH}/${COMMON_BIN_NAME} ${IMG_TOOL_PATH}/${COMMON_BIN_NAME}
+	fi
+	if test -f "${BIN_PATH}/${USER_BIN_NAME}"; then
+		cp -p ${BIN_PATH}/${USER_BIN_NAME} ${IMG_TOOL_PATH}/${USER_BIN_NAME}
 	fi
 	if test -f "${BIN_PATH}/${RESOURCE_BIN_NAME}"; then
 		cp -p ${BIN_PATH}/${RESOURCE_BIN_NAME} ${IMG_TOOL_PATH}/${RESOURCE_BIN_NAME}
@@ -207,6 +210,9 @@ function post_download()
 	if test -f "${COMMON_BIN_NAME}"; then
 		[ -e ${COMMON_BIN_NAME} ] && rm ${COMMON_BIN_NAME}
 	fi
+	if test -f "${USER_BIN_NAME}"; then
+		[ -e ${USER_BIN_NAME} ] && rm ${USER_BIN_NAME}
+	fi
 	if test -f "${SMARTFS_BIN_PATH}"; then
 		[ -e ${CONFIG_ARCH_BOARD}_smartfs.bin ] && rm ${CONFIG_ARCH_BOARD}_smartfs.bin
 	fi
@@ -224,5 +230,4 @@ function post_download()
 	fi
 
 }
-
 
