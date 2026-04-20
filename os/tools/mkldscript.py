@@ -21,6 +21,7 @@ import os
 import sys
 import string
 import subprocess
+import tempfile
 import config_util as util
 
 os_folder = os.path.dirname(__file__) + '/..'
@@ -165,6 +166,154 @@ if CONFIG_USER_SIGN_PREPEND_SIZE == 'None' :
     signing_offset = 0
 else :
     signing_offset = int(CONFIG_USER_SIGN_PREPEND_SIZE)
+
+LOADABLE_TARGETS = ("common", "app1", "app2")
+XIP_OBJCOPY = "arm-none-eabi-objcopy"
+
+def align_up(value, alignment):
+    return ((value + alignment - 1) // alignment) * alignment
+
+def get_flash_alignment():
+    align_config_names = [
+        "CONFIG_AMEBASMART_FLASH_BLOCK_SIZE=",
+        "CONFIG_AMEBAD_FLASH_BLOCK_SIZE=",
+        "CONFIG_AMEBALITE_FLASH_BLOCK_SIZE=",
+        "CONFIG_BK_FLASH_SECTOR_SIZE=",
+    ]
+
+    for config_name in align_config_names:
+        align_value = util.get_value_from_file(cfg_file, config_name).rstrip('\n')
+        if align_value != 'None':
+            return int(align_value, 0)
+
+    return 4096
+
+def get_loadable_order():
+    loadable_order = []
+
+    if CONFIG_SUPPORT_COMMON_BINARY == 'y':
+        loadable_order.append("common")
+    if util.check_config_existence(cfg_file, 'CONFIG_APP1_INFO') == True:
+        loadable_order.append("app1")
+    if util.check_config_existence(cfg_file, 'CONFIG_APP2_INFO') == True:
+        loadable_order.append("app2")
+
+    return loadable_order
+
+def get_loadable_output_name(target_name):
+    loadable_name_map = {
+        "common": "CONFIG_COMMON_BINARY_NAME=",
+        "app1": "CONFIG_APP1_BIN_NAME=",
+        "app2": "CONFIG_APP2_BIN_NAME=",
+    }
+
+    return util.get_value_from_file(cfg_file, loadable_name_map[target_name]).replace('"', '').rstrip('\n')
+
+def get_payload_offset(target_name):
+    if target_name == "common":
+        return signing_offset + 0x10
+    return signing_offset + 0x30
+
+def get_payload_offset_without_sign(target_name):
+    if target_name == "common":
+        return 0x10
+    return 0x30
+
+def get_target_ram_str(target_name):
+    if target_name == "common":
+        return common_ram_str
+    return app_ram_str[target_name]
+
+def get_loadable_slot_index(target_name):
+    for slot_index, name in enumerate(NAME_LIST):
+        if name == target_name:
+            return slot_index
+    raise RuntimeError("No %s partition configured for XIP loadable build" % target_name)
+
+def get_loadable_slot_size():
+    loadable_order = get_loadable_order()
+    if len(loadable_order) == 0:
+        raise RuntimeError("No loadable binaries configured")
+
+    start_index = get_loadable_slot_index(loadable_order[0])
+    slot_size = 0
+
+    for slot_name, slot_size_kb in zip(NAME_LIST[start_index:], SIZE_LIST[start_index:]):
+        if slot_name not in LOADABLE_TARGETS:
+            break
+        slot_size += int(slot_size_kb) * 1024
+
+    return slot_size
+
+def get_binary_file_size(binary_path):
+    temp_fd, temp_bin_path = tempfile.mkstemp(prefix="mkldscript_", suffix=".bin")
+    os.close(temp_fd)
+
+    try:
+        subprocess.check_call([XIP_OBJCOPY, "-O", "binary", binary_path, temp_bin_path])
+        return os.path.getsize(temp_bin_path)
+    finally:
+        if os.path.exists(temp_bin_path):
+            os.remove(temp_bin_path)
+
+def estimate_packaged_span(target_name):
+    binary_name = get_loadable_output_name(target_name)
+    binary_path = output_folder + binary_name
+
+    if not os.path.isfile(binary_path):
+        raise RuntimeError("Expected %s before generating %s_0.ld" % (binary_path, target_name))
+
+    raw_binary_size = get_binary_file_size(binary_path)
+    payload_offset = get_payload_offset_without_sign(target_name)
+
+    if util.get_value_from_file(cfg_file, "CONFIG_ARCH_CHIP_ARMINO=").rstrip('\n') != 'None':
+        padding_size = 32 - ((payload_offset + raw_binary_size) % 32)
+        if padding_size > 0:
+            raw_binary_size += padding_size
+
+    total_span = signing_offset + payload_offset + raw_binary_size
+    return total_span
+
+def get_target_start(target_name):
+    loadable_order = get_loadable_order()
+    current_offset = offset
+    flash_alignment = get_flash_alignment()
+
+    for loadable_name in loadable_order:
+        if loadable_name == target_name:
+            return current_offset
+        current_offset = align_up(current_offset + estimate_packaged_span(loadable_name), flash_alignment)
+
+    raise RuntimeError("Unsupported XIP loadable target: %s" % target_name)
+
+def generate_targeted_ld_script(target_name):
+    loadable_order = get_loadable_order()
+    if target_name not in loadable_order:
+        raise RuntimeError("%s is not enabled in the current configuration" % target_name)
+
+    slot_start = offset
+    slot_size = get_loadable_slot_size()
+    target_start = get_target_start(target_name)
+    payload_offset = get_payload_offset(target_name)
+    flash_size = slot_size - (target_start - slot_start) - payload_offset
+
+    if flash_size <= 0:
+        raise RuntimeError("No flash space left for %s after loadable packing" % target_name)
+
+    ld_file = output_folder + target_name + "_0.ld"
+    flash_start = hex(target_start + payload_offset)
+    with open(ld_file, "w") as ld:
+        print("Generating " + os.path.basename(ld_file) + " for sequential XIP loadable packing")
+        ld.write(generate_ld_script(flash_start, hex(flash_size), get_target_ram_str(target_name)))
+
+if len(sys.argv) > 1 and sys.argv[1] in LOADABLE_TARGETS:
+    generate_ld_script = lambda flash_start, flash_size, ram_str: "/* Auto-generated ld script */\nMEMORY\n{\n   uflash (rx)      : ORIGIN = " + flash_start + str1 + flash_size + str2 + ram_str
+    try:
+        generate_targeted_ld_script(sys.argv[1])
+    except RuntimeError as error:
+        print("Error: " + str(error))
+        sys.exit(1)
+    sys.exit(0)
 
 # Helper function to reset offset for generic mode boards (e.g., bk7239n)
 def reset_offset_if_needed():
