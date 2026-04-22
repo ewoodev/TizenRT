@@ -60,11 +60,50 @@ libObject = ""
 librarySize = {}
 objectSize = {}
 allLibraries = {}
-Required = {
-    ".text": [],
-    ".data": [],
-    ".bss": []
-}
+CATEGORY_KEYS = [".text", ".data", ".bss"]
+Required = dict((key, []) for key in CATEGORY_KEYS)
+
+# GNU ARM ELF images can place loadable read-only content in sections that are
+# not literally named ".text". Group those sections with text so the reported
+# total lines up better with the linked binary footprint.
+TEXT_SECTION_MARKERS = (
+    ".text",
+    ".rodata",
+    ".srodata",
+    ".data.rel.ro",
+    ".init_array",
+    ".fini_array",
+    ".preinit_array",
+    ".ctors",
+    ".dtors",
+    ".eh_frame",
+    ".eh_frame_hdr",
+    ".gcc_except_table",
+    ".glue_7",
+    ".glue_7t",
+    ".ARM.extab",
+    ".ARM.exidx",
+    ".gnu.linkonce.t",
+    ".gnu.linkonce.r"
+)
+
+DATA_SECTION_MARKERS = (
+    ".data",
+    ".sdata",
+    ".tdata",
+    ".got",
+    ".got.plt",
+    ".igot.plt",
+    ".gnu.linkonce.d"
+)
+
+BSS_SECTION_MARKERS = (
+    ".bss",
+    ".sbss",
+    ".tbss",
+    ".gnu.linkonce.b",
+    "COMMON"
+)
 
 allmap = {}
 
@@ -88,11 +127,28 @@ def isValidSubSymbol(field1, dictKeys):
     return None
 
 
-def findParent(c):
-    for r in list(Required.keys()):
-        if c in Required[r]:
-            return r
+def containsSectionMarker(sectionName, markers):
+    for marker in markers:
+        if sectionName.find(marker) != -1:
+            return True
+    return False
+
+
+def findParent(sectionName):
+    if containsSectionMarker(sectionName, TEXT_SECTION_MARKERS):
+        return ".text"
+    if containsSectionMarker(sectionName, DATA_SECTION_MARKERS):
+        return ".data"
+    if containsSectionMarker(sectionName, BSS_SECTION_MARKERS):
+        return ".bss"
     return None
+
+
+def addRequiredSection(sectionName):
+    parent = findParent(sectionName)
+    if parent != None and sectionName not in Required[parent]:
+        Required[parent].append(sectionName)
+    return parent
 
 
 def getListfromString(s):
@@ -112,13 +168,8 @@ def getListfromString(s):
 
 
 def PLO(size, libObj, currSym, subSym):
-    found = False
-    for key in list(Required.keys()):
-        if currSym.find(key) != -1:
-            found = True
-            if subSym not in Required[key]:
-                Required[key].append(subSym)
-    if found == False:
+    currSymParent = addRequiredSection(currSym)
+    if currSymParent == None:
         return
 
     libObj = libObj.strip().split('/')
@@ -140,7 +191,6 @@ def PLO(size, libObj, currSym, subSym):
     else:
         objectSize[dotO] = size
 
-    currSymParent = findParent(subSym)
     if library in list(allmap.keys()):
         if dotO in list(allmap[library].keys()):
             if currSymParent in list(allmap[library][dotO].keys()):
@@ -154,18 +204,18 @@ def PLO(size, libObj, currSym, subSym):
 
 
 def printLibrarySizes():
-    nfields = len(list(Required.keys()))
-    for r in list(Required.keys()):
+    nfields = len(CATEGORY_KEYS)
+    for r in CATEGORY_KEYS:
         print("\t" + r, end=' ')
     print("\t Total")
     for l in list(allmap.keys()):
         sizearr = [0] * nfields
         for o in allmap[l]:
             for s in list(allmap[l][o].keys()):
-                sizearr[list(Required.keys()).index(s)] += allmap[l][o][s]
+                sizearr[CATEGORY_KEYS.index(s)] += allmap[l][o][s]
 
-        for r in list(Required.keys()):
-            print("\t" + str(sizearr[list(Required.keys()).index(r)]), end=' ')
+        for r in CATEGORY_KEYS:
+            print("\t" + str(sizearr[CATEGORY_KEYS.index(r)]), end=' ')
         print("\t" + str(librarySize[l]) + "\t" + l)
 
 
@@ -175,18 +225,18 @@ def sortByTotal(n):
 
 def sortPrintLibrarySizes():
     results = []
-    nfields = len(list(Required.keys()))
-    for r in list(Required.keys()):
+    nfields = len(CATEGORY_KEYS)
+    for r in CATEGORY_KEYS:
         print("\t" + r, end=' ')
     print("\t Total")
     for l in list(allmap.keys()):
         sizearr = [0] * nfields
         for o in list(allmap[l].keys()):
             for s in list(allmap[l][o].keys()):
-                sizearr[list(Required.keys()).index(s)] += allmap[l][o][s]
+                sizearr[CATEGORY_KEYS.index(s)] += allmap[l][o][s]
         one_result = []
-        for r in list(Required.keys()):
-            one_result.append(str(sizearr[list(Required.keys()).index(r)]))
+        for r in CATEGORY_KEYS:
+            one_result.append(str(sizearr[CATEGORY_KEYS.index(r)]))
         one_result.append(str(librarySize[l]))
         one_result.append(l)
         results.append(one_result)
@@ -200,21 +250,21 @@ def sortPrintLibrarySizes():
 
 def sortPrintall():
     results = []
-    nfields = len(list(Required.keys()))
+    nfields = len(CATEGORY_KEYS)
     for l in list(allmap.keys()):
         print(l + "\t" + str(librarySize[l]))
-        for r in list(Required.keys()):
+        for r in CATEGORY_KEYS:
             print("\t" + r, end=' ')
         print("\t Total")
         for o in list(allmap[l].keys()):
             sizearr = [0] * nfields
-            for s in list(Required.keys()):
+            for s in CATEGORY_KEYS:
                 if s in list(allmap[l][o].keys()):
-                    sizearr[list(Required.keys()).index(s)] = allmap[l][o][s]
+                    sizearr[CATEGORY_KEYS.index(s)] = allmap[l][o][s]
 
             one_result = []
-            for r in list(Required.keys()):
-                one_result.append(str(sizearr[list(Required.keys()).index(r)]))
+            for r in CATEGORY_KEYS:
+                one_result.append(str(sizearr[CATEGORY_KEYS.index(r)]))
             one_result.append(str(objectSize[o]))
             one_result.append(o)
             results.append(one_result)
@@ -228,35 +278,33 @@ def sortPrintall():
 
 
 def printall():
-    nfields = len(list(Required.keys()))
+    nfields = len(CATEGORY_KEYS)
     for l in list(allmap.keys()):
         print(l + "\t" + str(librarySize[l]))
-        for r in list(Required.keys()):
+        for r in CATEGORY_KEYS:
             print("\t" + r, end=' ')
         print("\t Total")
         for o in list(allmap[l].keys()):
             sizearr = [0] * nfields
-            for s in list(Required.keys()):
+            for s in CATEGORY_KEYS:
                 if s in list(allmap[l][o].keys()):
-                    sizearr[list(Required.keys()).index(s)] = allmap[l][o][s]
+                    sizearr[CATEGORY_KEYS.index(s)] = allmap[l][o][s]
 
-            for r in list(Required.keys()):
+            for r in CATEGORY_KEYS:
                 print(
-                    "\t" + str(sizearr[list(Required.keys()).index(r)]), end=' ')
+                    "\t" + str(sizearr[CATEGORY_KEYS.index(r)]), end=' ')
             print("\t" + str(objectSize[o]) + "\t" + o)
 
 
 def printTotalSize():
-    ksSize = [0] * len(Required)
+    ksSize = [0] * len(CATEGORY_KEYS)
     for ks in list(level1.keys()):
-        if ks in list(Required.keys()):
-            for ks1 in Required[ks]:
-                if ks1 in list(level1.keys()):
-                    for s in level1[ks1]:
-                        ksSize[list(Required.keys()).index(ks)
-                               ] += level1[ks1][s]
+        parent = findParent(ks)
+        if parent != None:
+            for s in level1[ks]:
+                ksSize[CATEGORY_KEYS.index(parent)] += level1[ks][s]
 
-    for r in list(Required.keys()):
+    for r in CATEGORY_KEYS:
         print("\t"+r, end=' ')
     print("")
     for r in ksSize:
@@ -358,7 +406,7 @@ if options.totsize:
     print("######################################")
     print("##      Sizes Calculated Using:     ##")
     print("######################################")
-    for r in list(Required.keys()):
+    for r in CATEGORY_KEYS:
         print(r+":\n\t", end=' ')
         t = 1
         for s in Required[r]:
