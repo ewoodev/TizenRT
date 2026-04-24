@@ -22,8 +22,8 @@
 
 import os
 import sys
-import string
 import config_util as util
+import shared_slot_tool as shared_slot
 
 os_folder = os.path.dirname(__file__) + '/..'
 cfg_file = os_folder + '/.config'
@@ -48,6 +48,7 @@ SECOND_PARTITION_SIZE_LIST = util.get_value_from_file(cfg_file, "CONFIG_SECOND_F
 
 FAIL_TO_BUILD = False
 WARNING_RATIO = 95
+fail_type_list = []
 
 def number_with_comma_align(number):
     return ("{:10,}".format(number))
@@ -55,50 +56,53 @@ def number_with_comma_align(number):
 def number_with_comma(number):
     return ("{:,}".format(number))
 
-def validate_binary_size(bin_type, part_size):
-    outfile = open(output_file_name, 'w')
+def write_validation_line(text):
+    with open(output_file_name, 'a') as outfile:
+        outfile.write(text + '\n')
 
-    # Read the binary name from .bininfo
+
+def get_output_path(bin_type):
     bin_name = util.get_binname_from_bininfo(bin_type)
-    if bin_name == 'None' :
-        return
-    output_path = build_folder + '/output/bin/' + bin_name
+    if bin_name == 'None':
+        return None
+    return output_folder + '/' + bin_name
 
-    # Get the partition and binary size
-    BINARY_SIZE=os.path.getsize(output_path)
-    PARTITION_SIZE = part_size
+
+def get_result(partition_size, binary_size):
     used_ratio = 0
+    if partition_size != 0:
+        used_ratio = round(float(binary_size) / float(partition_size) * 100, 2)
 
-    # Calculate the used ratio
-    if PARTITION_SIZE != 0 :
-        used_ratio = round(float(BINARY_SIZE) / float(PARTITION_SIZE) * 100, 2)
+    if partition_size < int(binary_size):
+        return used_ratio, "FAIL", ""
+    if used_ratio > WARNING_RATIO:
+        return used_ratio, "WARNING", ":warning:"
+    return used_ratio, "PASS", ":heavy_check_mark:"
 
-    # Calculate the used ratio
-    if PARTITION_SIZE != 0 :
-        used_ratio = round(float(BINARY_SIZE) / float(PARTITION_SIZE) * 100, 2)
 
-    # Compare the partition size and its binary size
-    if PARTITION_SIZE < int(BINARY_SIZE) :
+def report_validation(bin_type, binary_size, partition_size, output_path=None):
+    used_ratio, check_result, result_mark = get_result(partition_size, binary_size)
+
+    if check_result == "FAIL":
         fail_type_list.append(bin_type)
-        os.remove(output_path)
+        if output_path and os.path.isfile(output_path):
+            os.remove(output_path)
         global FAIL_TO_BUILD
         FAIL_TO_BUILD = True
-        check_result = "FAIL"
-        result_mark = ""
-    elif used_ratio > WARNING_RATIO :
-        check_result = "WARNING"
-        result_mark = ":warning:"
-    else :
-        check_result = "PASS"
-        result_mark = ":heavy_check_mark:"
 
-    # Print each information
-    print(" {:10}".format(bin_type) + " " + number_with_comma_align(BINARY_SIZE) + " bytes   " +
-            number_with_comma_align(PARTITION_SIZE) + " bytes    " + "{:6}".format(used_ratio) + "%    " + check_result)
-    # File print each information
-    outfile.write(bin_type + " | " + number_with_comma(BINARY_SIZE) + " bytes | " +
-        number_with_comma(PARTITION_SIZE) + " bytes | " + str(used_ratio)+"%" + " | " + result_mark + check_result + "\n")
-    outfile.close()
+    print(" {:10}".format(bin_type) + " " + number_with_comma_align(binary_size) + " bytes   " +
+            number_with_comma_align(partition_size) + " bytes    " + "{:6}".format(used_ratio) + "%    " + check_result)
+    write_validation_line(bin_type + " | " + number_with_comma(binary_size) + " bytes | " +
+        number_with_comma(partition_size) + " bytes | " + str(used_ratio) + "% | " + result_mark + check_result)
+
+
+def validate_binary_size(bin_type, part_size):
+    output_path = get_output_path(bin_type)
+    if output_path is None:
+        return
+
+    binary_size = os.path.getsize(output_path)
+    report_validation(bin_type, binary_size, part_size, output_path)
 
 def check_part_size(flash_type, bin_type):
     if flash_type == INTERNAL_FLASH :
@@ -129,6 +133,59 @@ def check_binary_size(bin_name):
 
     validate_binary_size(bin_name, part_size)
 
+
+def is_shared_slot_validation_enabled():
+    return shared_slot.is_nonxip_shared_slot_enabled()
+
+
+def get_enabled_shared_slot_targets():
+    targets = ["kernel"]
+
+    if util.check_config_existence(cfg_file, 'CONFIG_SUPPORT_COMMON_BINARY=y') == True:
+        targets.append("common")
+    if util.check_config_existence(cfg_file, 'CONFIG_APP1_INFO=y') == True:
+        targets.append("app1")
+    if util.check_config_existence(cfg_file, 'CONFIG_APP2_INFO=y') == True:
+        targets.append("app2")
+
+    return targets
+
+
+def validate_shared_slot_size():
+    targets = get_enabled_shared_slot_targets()
+    slot_start = shared_slot.get_partition_offset("kernel")
+    slot_end = shared_slot.get_shared_slot_end()
+    slot_size = slot_end - slot_start
+    flash_alignment = shared_slot.get_flash_alignment()
+    current_start = slot_start
+
+    print("\nShared slot layout details:")
+    for index, target_name in enumerate(targets):
+        output_path = shared_slot.get_package_path(target_name)
+        binary_size = os.path.getsize(output_path)
+        remaining_size = slot_end - current_start
+        bin_type = shared_slot.get_bininfo_key(target_name)
+
+        report_validation(bin_type, binary_size, remaining_size, output_path)
+
+        current_end = current_start + binary_size
+        padding_size = 0
+        if index != len(targets) - 1:
+            aligned_end = shared_slot.align_up(current_end, flash_alignment)
+            padding_size = aligned_end - current_end
+            current_start = aligned_end
+        else:
+            current_start = current_end
+
+        print("  {:8} start={} end={} pad={}".format(
+            target_name.upper(),
+            hex(current_end - binary_size),
+            hex(current_end),
+            padding_size))
+
+    used_total = current_start - slot_start
+    report_validation("SHARED_SLOT", used_total, slot_size)
+
 # Check if the binary size is smaller than its partition size
 print("\n========== Size Verification of built Binaries ==========")
 print("Type        Binary Size     Partition Size      used(%)")
@@ -140,13 +197,15 @@ outfile.write("Type | Binary Size | Partition Size | used(%) | result\n")
 outfile.write("-- | -- | -- | -- | --\n")
 outfile.close()
 
-fail_type_list = []
-check_binary_size("KERNEL")
-if CONFIG_APP_BINARY_SEPARATION == "y" :
-    check_binary_size("APP1")
-    check_binary_size("APP2")
-    if CONFIG_SUPPORT_COMMON_BINARY == "y" :
-        check_binary_size("COMMON")
+if is_shared_slot_validation_enabled():
+    validate_shared_slot_size()
+else:
+    check_binary_size("KERNEL")
+    if CONFIG_APP_BINARY_SEPARATION == "y" :
+        check_binary_size("APP1")
+        check_binary_size("APP2")
+        if CONFIG_SUPPORT_COMMON_BINARY == "y" :
+            check_binary_size("COMMON")
 if CONFIG_RESOURCE_FS == "y" :
     check_binary_size("RESOURCE")
 
