@@ -60,6 +60,7 @@
 #include <tinyara/compiler.h>
 
 #include <stdint.h>
+#include <time.h>
 #include <queue.h>
 #include <sched.h>
 
@@ -210,5 +211,8 @@ void sig_releasependingsigaction(FAR sigq_t *sigq);
 void sig_releasependingsignal(FAR sigpendq_t *sigpend);
 FAR sigpendq_t *sig_removependingsignal(FAR struct tcb_s *stcb, int signo);
 void sig_unmaskpendingsignal(void);
+#ifdef CONFIG_SCHED_WAKEUPSOURCE
+int sig_sleepwait_wakeup(FAR const struct timespec *timeout);
+#endif
 
 #endif							/* __SCHED_SIGNAL_SIGNAL_H */

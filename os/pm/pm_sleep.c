@@ -52,12 +52,11 @@
  ************************************************************************/
 
 #include <tinyara/pm/pm.h>
-#include <tinyara/irq.h>
-#include <tinyara/wdog.h>
 #include <tinyara/clock.h>
-#include <tinyara/sched.h>
-#include <errno.h>
-#include <debug.h>
+
+#include <time.h>
+
+#include "../kernel/signal/signal.h"
 /************************************************************************
  * Pre-processor Definitions
  ************************************************************************/
@@ -74,76 +73,33 @@
  * Public Functions
  ************************************************************************/
 
-static void pm_timer_callback(int argc, uint32_t sem)
-{
-	/* As the timer is expired, give back the semaphore to unlock the thread */
-	sem_post((sem_t *)sem);
-}
-
 /************************************************************************
  * Name: pm_sleep
  *
  * Description:
- *   This function allows the board to sleep for given time interval.
- *   When this function is called, it is expected that board will sleep for
- *   given duration of time. But for some cases board might not go
- *   to sleep instantly if :
- * 	1. system is in pm lock (pm state transition is locked)
- *      2. Other threads(other than idle) are running
- *      3. NORMAL to SLEEP state threshold time is large
+ *   This function allows the board to sleep for the given time interval
+ *   using sleep-like interruption semantics. During the wait, a PM wakeup
+ *   source is installed so the board can wake at the requested time.
  *
  * Parameters:
  *   milliseconds - expected board sleep duration
  *
  * Return Value:
- *   OK - success
- *   ERROR - error
+ *   OK - timeout elapsed
+ *   ERROR - interrupted or failed
  *
  ************************************************************************/
 
 int pm_sleep(int milliseconds)
 {
-	sem_t pm_sem;
-	irqstate_t flags;
-	int ret = ERROR;
-	/* TODO - Since PM & Kernel are separate, we should not use tcb inside pm.
-	 * We need to remove tcb in future.
-	 */
-	FAR struct tcb_s *rtcb = sched_self();
-	/* initialize the timer's semaphore. It will be used to lock the
-	 * thread before sleep and unlock after expire */
-	sem_init(&pm_sem, 0, 0);
-	flags = enter_critical_section();
-	DEBUGASSERT(rtcb->waitdog == NULL);
-	/* Create wakeup timer */
-	rtcb->waitdog = wd_create();
-	if (!rtcb->waitdog) {
-		set_errno(EAGAIN);
-		pmdbg("Error creating wdog timer\n");
-		goto errout;
+	struct timespec timeout;
+
+	if (milliseconds <= 0) {
+		return OK;
 	}
-	/* set this timer as wakeup source */
-	if (wd_setwakeupsource(rtcb->waitdog) != OK) {
-		pmdbg("Error setting wakeup flag to wdog timer\n");
-		wd_delete(rtcb->waitdog);
-		goto errout;
-	}
-	/* before going into sleep start the wakeup timer */
-	ret = wd_start(rtcb->waitdog, MSEC2TICK(milliseconds), (wdentry_t)pm_timer_callback, 1, (uint32_t)&pm_sem);
-	if (ret != OK) {
-		pmdbg("pm_sleep: wd_start failed\n");
-		wd_delete(rtcb->waitdog);
-		goto errout;
-	}
-	/* sem_wait untill the timer expires */
-	do {
-		ret = sem_wait(&pm_sem);
-		DEBUGASSERT(ret == 0 || errno == EINTR);
-	} while (ret < 0);
-	/* When the semaphore is freed, make the pm timer free */
-	wd_delete(rtcb->waitdog);
-errout:
-	rtcb->waitdog = NULL;
-	leave_critical_section(flags);
-	return ret;
+
+	timeout.tv_sec = milliseconds / MSEC_PER_SEC;
+	timeout.tv_nsec = (milliseconds % MSEC_PER_SEC) * NSEC_PER_MSEC;
+
+	return sig_sleepwait_wakeup(&timeout);
 }

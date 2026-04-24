@@ -159,6 +159,112 @@ static void sig_timeout(int argc, uint32_t itcb)
 #endif
 }
 
+#ifdef CONFIG_SCHED_WAKEUPSOURCE
+/****************************************************************************
+ * Name: sig_sleepwait_wakeup
+ *
+ * Description:
+ *   Wait for the specified interval using a timeout watchdog that is also
+ *   registered as a PM wakeup source. This helper follows nanosleep-style
+ *   semantics: it returns OK when the timeout expires and ERROR with EINTR
+ *   when interrupted by a signal.
+ *
+ * Parameters:
+ *   timeout - The amount of time to wait
+ *
+ * Return Value:
+ *   OK on timeout, otherwise ERROR with errno set appropriately.
+ *
+ ****************************************************************************/
+
+int sig_sleepwait_wakeup(FAR const struct timespec *timeout)
+{
+	FAR struct tcb_s *rtcb = this_task();
+	irqstate_t saved_state;
+	int32_t waitticks;
+	int ret = ERROR;
+
+	DEBUGASSERT(rtcb->waitdog == NULL);
+
+	(void)enter_cancellation_point();
+
+	if (!timeout || timeout->tv_nsec < 0 || timeout->tv_nsec >= NSEC_PER_SEC) {
+		set_errno(EINVAL);
+		goto errout;
+	}
+
+	saved_state = enter_critical_section();
+	rtcb->sigwaitmask = NULL_SIGNAL_SET;
+
+#ifdef CONFIG_HAVE_LONG_LONG
+	{
+		uint64_t waitticks64 = ((uint64_t)timeout->tv_sec * NSEC_PER_SEC +
+			(uint64_t)timeout->tv_nsec + NSEC_PER_TICK - 1) / NSEC_PER_TICK;
+		DEBUGASSERT(waitticks64 <= UINT32_MAX);
+		waitticks = (uint32_t)waitticks64;
+	}
+#else
+	{
+		uint32_t waitmsec;
+
+		DEBUGASSERT(timeout->tv_sec < UINT32_MAX / MSEC_PER_SEC);
+		waitmsec = timeout->tv_sec * MSEC_PER_SEC +
+			(timeout->tv_nsec + NSEC_PER_MSEC - 1) / NSEC_PER_MSEC;
+		waitticks = MSEC2TICK(waitmsec);
+	}
+#endif
+
+	rtcb->waitdog = wd_create();
+	if (!rtcb->waitdog) {
+		set_errno(EAGAIN);
+		goto errout_with_critical;
+	}
+
+	if (wd_setwakeupsource(rtcb->waitdog) != OK) {
+		wd_delete(rtcb->waitdog);
+		rtcb->waitdog = NULL;
+		goto errout_with_critical;
+	}
+
+	{
+		wdparm_t wdparm;
+		wdparm.pvarg = (FAR void *)rtcb;
+
+		ret = wd_start(rtcb->waitdog, waitticks, (wdentry_t)sig_timeout, 1, wdparm.dwarg);
+		if (ret != OK) {
+			wd_delete(rtcb->waitdog);
+			rtcb->waitdog = NULL;
+			goto errout_with_critical;
+		}
+	}
+
+	up_block_task(rtcb, TSTATE_WAIT_SIG);
+
+	wd_delete(rtcb->waitdog);
+	rtcb->waitdog = NULL;
+	rtcb->sigwaitmask = NULL_SIGNAL_SET;
+
+	if (GOOD_SIGNO(rtcb->sigunbinfo.si_signo)) {
+		set_errno(EINTR);
+		ret = ERROR;
+	} else {
+		DEBUGASSERT(rtcb->sigunbinfo.si_signo == SIG_WAIT_TIMEOUT);
+		ret = OK;
+	}
+
+	leave_critical_section(saved_state);
+	leave_cancellation_point();
+	return ret;
+
+errout_with_critical:
+	rtcb->sigwaitmask = NULL_SIGNAL_SET;
+	leave_critical_section(saved_state);
+errout:
+	leave_cancellation_point();
+	return ERROR;
+}
+#endif
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
