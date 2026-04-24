@@ -99,7 +99,9 @@
  *   POLLHUP
  *     Device has been disconnected (revents only).
  *   POLLNVAL
- *     Invalid fd member (revents only).
+ *     Available for invalid-descriptor reporting in revents. The current VFS
+ *     poll() wrapper returns `EBADF` for invalid positive descriptors instead
+ *     of reporting `POLLNVAL`.
  */
 
 #define POLLIN       (0x01)		/* TinyAra does not make priority distinctions */
@@ -162,8 +164,13 @@ extern "C" {
 
 /**
  * @ingroup POLL_KERNEL
- * @brief  POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
- * @details SYSTEM CALL API
+ * @brief  monitor file and socket descriptors for readiness
+ * @details @b #include <poll.h> \n
+ * SYSTEM CALL API \n
+ * Negative fd entries are ignored. File descriptors use the VFS poll path,
+ * configured sockets use the network poll path, and positive timeouts are
+ * converted to a CLOCK_REALTIME absolute deadline in milliseconds. Invalid
+ * positive descriptors fail the call with `EBADF`. \n
  * @since TizenRT v1.0
  */
 int poll(FAR struct pollfd *fds, nfds_t nfds, int timeout);

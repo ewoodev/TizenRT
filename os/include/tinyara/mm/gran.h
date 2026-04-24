@@ -105,37 +105,18 @@ extern "C" {
  * Name: gran_initialize
  *
  * Description:
- *   Set up one granule allocator instance.  Allocations will be aligned to
- *   the alignment size (log2align; allocations will be in units of the
- *   granule size (log2gran). Larger granules will give better performance
- *   and less overhead but more losses of memory due to quantization waste.
- *   Additional memory waste can occur from alignment; log2align should be
- *   set to 0 unless you are using the granule allocator to manage DMA
- *   or page-aligned memory and your hardware has specific memory alignment
- *   requirements.
+ *   Initialize one bitmap-backed granule allocator over the caller-supplied
+ *   heap region.  The usable heap start is rounded up to the requested
+ *   alignment, the usable heap size is rounded down to a whole number of
+ *   granules, and allocations are returned in granule-sized units.
  *
- *   General Usage Summary.  This is an example using the GCC section
- *   attribute to position a DMA heap in memory (logic in the linker script
- *   would assign the section .dmaheap to the DMA memory.
+ *   The allocator's metadata lives in a separate kernel allocation; the
+ *   caller-provided heap is managed as payload memory only.
  *
- *     FAR uint32_t g_dmaheap[DMAHEAP_SIZE] __attribute__((section(.dmaheap)));
- *
- *   The heap is created by calling gran_initialize.  Here the granule size
- *   is set to 64 bytes and the alignment to 16 bytes:
- *
- *     GRAN_HANDLE handle = gran_initialize(g_dmaheap, DMAHEAP_SIZE, 6, 4);
- *
- *   Then the GRAN_HANDLE can be used to allocate memory (There is no
- *   GRAN_HANDLE if CONFIG_GRAN_SINGLE=y):
- *
- *     FAR uint8_t *dma_memory = (FAR uint8_t *)gran_alloc(handle, 47);
- *
- *   The actual memory allocates will be 64 byte (wasting 17 bytes) and
- *   will be aligned at least to (1 << log2align).
- *
- *   NOTE: The current implementation also restricts the maximum allocation
- *   size to 32 granules.  That restriction could be eliminated with some
- *   additional coding effort.
+ *   Larger granules reduce bitmap overhead and search cost, but they also
+ *   increase internal fragmentation.  `log2align` should normally remain 0
+ *   unless the allocator is managing DMA or page-oriented memory with an
+ *   external alignment requirement.
  *
  * Input Parameters:
  *   heapstart - Start of the granule allocation heap
@@ -150,8 +131,9 @@ extern "C" {
  *               would mean that no alignment is required.
  *
  * Returned Value:
- *   On success, a non-NULL handle is returned that may be used with other
- *   granule allocator interfaces.
+ *   If CONFIG_GRAN_SINGLE=y, returns OK on success or -ENOMEM when the
+ *   allocator metadata cannot be allocated.
+ *   Otherwise, returns a non-NULL handle on success or NULL on failure.
  *
  ****************************************************************************/
 
@@ -165,11 +147,13 @@ GRAN_HANDLE gran_initialize(FAR void *heapstart, size_t heapsize, uint8_t log2gr
  * Name: gran_release
  *
  * Description:
- *   Uninitialize a gram memory allocator and release resources held by the
- *   allocator.
+ *   Destroy one granule allocator instance and release the metadata that was
+ *   allocated by gran_initialize().  The caller-managed heap is not freed or
+ *   scrubbed, and outstanding allocations are not checked.
  *
  * Input Parameters:
- *   handle - The handle previously returned by gran_initialize
+ *   If CONFIG_GRAN_SINGLE=y, no input is required.
+ *   Otherwise, handle is the value previously returned by gran_initialize().
  *
  * Returned Value:
  *   None.
@@ -186,16 +170,18 @@ void gran_release(GRAN_HANDLE handle);
  * Name: gran_reserve
  *
  * Description:
- *   Reserve memory in the granule heap.  This will reserve the granules
- *   that contain the start and end addresses plus all of the granules
- *   in between.  This should be done early in the initialization sequence
- *   before any other allocations are made.
+ *   Reserve a caller-specified region in the granule heap.  The
+ *   implementation rounds start down and the inclusive end address up to the
+ *   surrounding granule boundaries, then marks every granule in that span as
+ *   allocated.
  *
- *   Reserved memory can never be allocated (it can be freed however which
- *   essentially unreserves the memory).
+ *   Reserved memory cannot be returned by gran_alloc() until the same span is
+ *   released with gran_free().  This entry point is intended for early
+ *   carve-out use before concurrent allocations begin.
  *
  * Input Parameters:
- *   handle - The handle previously returned by gran_initialize
+ *   If CONFIG_GRAN_SINGLE=y, no handle is required.
+ *   Otherwise, handle is the value previously returned by gran_initialize().
  *   start  - The address of the beginning of the region to be reserved.
  *   size   - The size of the region to be reserved
  *
@@ -214,19 +200,20 @@ void gran_reserve(GRAN_HANDLE handle, uintptr_t start, size_t size);
  * Name: gran_alloc
  *
  * Description:
- *   Allocate memory from the granule heap.
+ *   Allocate one contiguous region from the granule heap.  The requested size
+ *   is rounded up to a whole number of granules and the returned pointer is
+ *   aligned to the allocator's granule size.
  *
  *   NOTE: The current implementation also restricts the maximum allocation
- *   size to 32 granules.  That restriction could be eliminated with some
- *   additional coding effort.
+ *   size to 32 granules.  Callers must stay within that limit.
  *
  * Input Parameters:
- *   handle - The handle previously returned by gran_initialize
+ *   If CONFIG_GRAN_SINGLE=y, no handle is required.
+ *   Otherwise, handle is the value previously returned by gran_initialize().
  *   size   - The size of the memory region to allocate.
  *
  * Returned Value:
- *   On success, either a non-NULL pointer to the allocated memory (if
- *   CONFIG_GRAN_SINGLE) or zero  (if !CONFIG_GRAN_SINGLE) is returned.
+ *   Returns a non-NULL pointer on success or NULL on failure.
  *
  ****************************************************************************/
 
@@ -240,11 +227,16 @@ FAR void *gran_alloc(GRAN_HANDLE handle, size_t size);
  * Name: gran_free
  *
  * Description:
- *   Return memory to the granule heap.
+ *   Return one region to the granule heap.  The caller must provide the same
+ *   start address and allocation size contract used when the region was
+ *   obtained or reserved.  The size is rounded up to granule units again when
+ *   clearing the bitmap.
  *
  * Input Parameters:
- *   handle - The handle previously returned by gran_initialize
+ *   If CONFIG_GRAN_SINGLE=y, no handle is required.
+ *   Otherwise, handle is the value previously returned by gran_initialize().
  *   memory - A pointer to memory previously allocated by gran_alloc.
+ *   size   - Size of the allocation or reserved span being released.
  *
  * Returned Value:
  *   None

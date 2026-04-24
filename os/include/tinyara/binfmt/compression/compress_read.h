@@ -46,7 +46,8 @@ struct s_buffer {
  * Name: compress_uninit
  *
  * Description:
- *   Release buffers initialized during compress_init
+ *   Release the global decompression header and temporary block buffers that
+ *   were allocated for the current compressed file session.
  *
  * Returned Value:
  *   None
@@ -57,11 +58,13 @@ void compress_uninit(void);
  * Name: compress_init
  *
  * Description:
- *   Initialize the header 's_header' for this binary
+ *   Parse the compression header for `filfd`, cache it as the active
+ *   decompression session, allocate temporary block buffers, and return the
+ *   uncompressed file size through `filelen`.
  *
- * Returned value:
- *   OK (0) on Success
- *   ERROR (-1) on Failure
+ * Returned Value:
+ *   `OK` on success, `-EBUSY` when another file is already active, or a
+ *   negative errno value when header validation or allocation fails.
  ****************************************************************************/
 int compress_init(int filfd, uint16_t offset, off_t *filelen);
 
@@ -69,22 +72,26 @@ int compress_init(int filfd, uint16_t offset, off_t *filelen);
  * Name: compress_read
  *
  * Description:
- *   Read bytes from the compressed file using 'offset' and 'readsize' info
- *   provided for uncompressed file.  The data is read into 'buffer'. Offset
- *   value here is offset from start of uncompressed binary (excluding binary
- *   header).
+ *   Read uncompressed bytes from the active compressed file session. The
+ *   implementation loads only the compressed blocks that cover the requested
+ *   range and copies the requested byte span into `buffer`.
  *
  * Returned Value:
- *   Number of bytes read into buffer on Success
- *   Negative value on failure
+ *   The number of bytes copied into `buffer`, or a negative failure value on
+ *   error. Some paths return specific negative errno-style codes, while other
+ *   failures return `ERROR` (`-1`).
  ****************************************************************************/
 int compress_read(int filfd, uint16_t binary_header_size, FAR uint8_t *buffer, size_t readsize, off_t offset);
 
 /****************************************************************************
  * Name: get_compression_header
  *
+ * Description:
+ *   Return the header object cached by the current `compress_init()` session.
+ *
  * Returned Value:
- *   Address of the compression_header
+ *   The active compression header pointer, or `NULL` when no session is
+ *   initialized.
  ****************************************************************************/
 struct s_header *get_compression_header(void);
 

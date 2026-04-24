@@ -98,13 +98,15 @@
  * Name: mq_desalloc
  *
  * Description:
- *   Allocate a message queue descriptor.
+ *   Allocate one message queue descriptor from the global free pool.
+ *   If the pool is empty, extend it with mq_desblockalloc() and retry.
  *
  * Inputs:
  *   None
  *
  * Return Value:
- *   Reference to the allocated mq descriptor.
+ *   Reference to the allocated mq descriptor, or NULL if the pool cannot
+ *   be extended.
  *
  ****************************************************************************/
 
@@ -139,16 +141,19 @@ static mqd_t mq_desalloc(void)
  * Name: mq_descreate
  *
  * Description:
- *   Create a message queue descriptor for the specified TCB
+ *   Create a message queue descriptor for the specified task.  The helper
+ *   resolves a NULL task pointer to the currently executing task, then
+ *   appends the descriptor to that task group's descriptor list.
  *
  * Inputs:
  *   mtcb   - task that needs the descriptor.
- *   msgq   - Named message queue containing the message
+ *   msgq   - Backing message queue object referenced by the descriptor
  *   oflags - access rights for the descriptor
  *
  * Return Value:
- *   On success, the message queue descriptor is returned.  NULL is returned
- *   on a failure to allocate.
+ *   On success, the message queue descriptor is returned.  NULL is
+ *   returned when no descriptor can be allocated.  This helper does not
+ *   set errno on that failure path.
  *
  ****************************************************************************/
 
@@ -168,7 +173,7 @@ mqd_t mq_descreate(FAR struct tcb_s *mtcb, FAR struct mqueue_inode_s *msgq, int 
 	group = mtcb->group;
 	DEBUGASSERT(group);
 
-	/* Create a message queue descriptor for the TCB */
+	/* Create a message queue descriptor for the task's group. */
 
 	mqdes = mq_desalloc();
 	if (mqdes) {
@@ -178,7 +183,7 @@ mqd_t mq_descreate(FAR struct tcb_s *mtcb, FAR struct mqueue_inode_s *msgq, int 
 		mqdes->msgq = msgq;
 		mqdes->oflags = oflags;
 
-		/* And add it to the specified task's TCB */
+		/* And add it to the task group's descriptor list. */
 
 		sq_addlast((FAR sq_entry_t *)mqdes, &group->tg_msgdesq);
 	}

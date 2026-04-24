@@ -247,10 +247,9 @@ int board_uniqueid(FAR uint8_t *uniqueid);
  *
  *   This is an internal OS interface but may be invoked indirectly from
  *   application-level touchscreen testing logic (perhaps by
- *   apps/examples/touchscreen).  If CONFIG_LIB_BOARDCTL=y and
- *   CONFIG_BOARDCTL_TSCTEST=y, then this functions will be invoked via the
- *   (non-standard) boardctl() interface using the BOARDIOC_TSCTEST_SETUP
- *   command.
+ *   apps/examples/touchscreen). The current common os/arch/boardctl.c
+ *   implementation does not dispatch a touchscreen setup command for this
+ *   hook.
  *
  * Input Parameters:
  *   minor   - The input device minor number
@@ -273,10 +272,9 @@ int board_tsc_setup(int minor);
  *
  *   This is an internal OS interface but may be invoked indirectly from
  *   application-level touchscreen testing logic (perhaps by
- *   apps/examples/touchscreen).  If CONFIG_LIB_BOARDCTL=y and
- *   CONFIG_BOARDCTL_TSCTEST=y, then this functions will be invoked via the
- *   (non-standard) boardctl() interface using the BOARDIOC_TSCTEST_TEARDOWN
- *   command.
+ *   apps/examples/touchscreen). The current common os/arch/boardctl.c
+ *   implementation does not dispatch a touchscreen teardown command for
+ *   this hook.
  *
  * Input Parameters:
  *   None
@@ -296,10 +294,9 @@ void board_tsc_teardown(void);
  *   work with examples/adc.
  *
  *   This is an internal OS interface but may be invoked indirectly from
- *   application-level graphics logic.  If CONFIG_LIB_BOARDCTL=y and
- *   CONFIG_BOARDCTL_ADCTEST=y, then this functions will be invoked via the
- *   (non-standard) boardctl() interface using the BOARDIOC_ADCTEST_SETUP
- *   command.
+ *   application-level ADC example or test logic. The current common
+ *   os/arch/boardctl.c implementation does not dispatch an ADC setup
+ *   command for this hook.
  *
  ****************************************************************************/
 
@@ -313,10 +310,9 @@ int board_adc_setup(void);
  *   work with examples/pwm.
  *
  *   This is an internal OS interface but may be invoked indirectly from
- *   application-level graphics logic.  If CONFIG_LIB_BOARDCTL=y and
- *   CONFIG_BOARDCTL_PWMTEST=y, then this functions will be invoked via the
- *   (non-standard) boardctl() interface using the commands
- *   BOARDIOC_PWMTEST_SETUP command.
+ *   application-level PWM example or test logic. The current common
+ *   os/arch/boardctl.c implementation does not dispatch a PWM setup
+ *   command for this hook.
  *
  ****************************************************************************/
 
@@ -326,14 +322,12 @@ int board_pwm_setup(void);
  * Name: board_graphics_setup
  *
  * Description:
- *   If the driver for the graphics device on the platform some unusual
- *   initialization, then this board interface should be provided.
+ *   If the graphics device on the platform needs unusual initialization,
+ *   then this board interface should be provided.
  *
  *   This is an internal OS interface but may be invoked indirectly from
- *   application-level graphics logic.  If CONFIG_LIB_BOARDCTL=y and
- *   CONFIG_BOARDCTL_GRAPHICS=y, then this functions will be invoked via the
- *   (non-standard) boardctl() interface using the BOARDIOC_GRAPHICS_SETUP
- *   command.
+ *   application-level graphics logic. The current common os/arch/boardctl.c
+ *   implementation does not dispatch a graphics setup command for this hook.
  *
  ****************************************************************************/
 
@@ -353,10 +347,9 @@ FAR struct fb_vtable_s *board_graphics_setup(unsigned int devno);
  *   apps/examples/can.
  *
  *   This is an internal OS interface but may be invoked indirectly from
- *   application-level graphics logic.  If CONFIG_LIB_BOARDCTL=y and
- *   CONFIG_BOARDCTL_CANINIT=y, then this functions will be invoked via the
- *   (non-standard) boardctl() interface using the BOARDIOC_CAN_INITIALIZE
- *   command.
+ *   application-level CAN example or test logic. The current common
+ *   os/arch/boardctl.c implementation does not dispatch a CAN-initialize
+ *   command for this hook.
  *
  ****************************************************************************/
 
@@ -368,10 +361,10 @@ int board_can_initialize(void);
  * Name: board_ioctl
  *
  * Description:
- *   If CONFIG_LIB_BOARDCTL=y, boards may also select CONFIG_BOARDCTL_IOCTL=y
- *   enable board specific commands.  In this case, all commands not
- *   recognized by boardctl() will be forwarded to the board-provided
- *   board_ioctl() function.
+ *   If CONFIG_BOARDCTL_IOCTL=y, boards may provide a board-specific control
+ *   hook here. The current common os/arch/boardctl.c implementation does
+ *   not forward unrecognized commands to board_ioctl(); boards that need
+ *   that behavior must extend the dispatcher.
  *
  ****************************************************************************/
 

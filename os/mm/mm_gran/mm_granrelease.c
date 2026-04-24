@@ -16,7 +16,7 @@
  *
  ****************************************************************************/
 /****************************************************************************
- * mm/mm_gran/mm_graninit.c
+ * mm/mm_gran/mm_granrelease.c
  *
  *   Copyright (C) 2012 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
@@ -88,7 +88,7 @@ FAR struct gran_s *g_graninfo;
  * Name: gran_release_common
  *
  * Description:
- *   Perform common GRAN initialization.
+ *   Perform common GRAN release.
  *
  * Input Parameters:
  *   priv - Reference to the granule heap structure to be released.
@@ -115,11 +115,13 @@ static inline void gran_release_common(FAR struct gran_s *priv)
  * Name: gran_release
  *
  * Description:
- *   Uninitialize a gram memory allocator and release resources held by the
- *   allocator.
+ *   Destroy one granule allocator instance and release the metadata that was
+ *   allocated by gran_initialize().  The caller-managed heap is not freed or
+ *   scrubbed, and outstanding allocations are not checked.
  *
  * Input Parameters:
- *   handle - The handle previously returned by gran_initialize
+ *   If CONFIG_GRAN_SINGLE=y, no input is required.
+ *   Otherwise, handle is the value previously returned by gran_initialize().
  *
  * Returned Value:
  *   None.

@@ -16,7 +16,7 @@
  *
  ****************************************************************************/
 /************************************************************************
- * libc/mqueue/mq_setattr.c
+ * kernel/mqueue/mq_setattr.c
  *
  *   Copyright (C) 2007, 2009, 2011 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
@@ -56,6 +56,7 @@
 
 #include <tinyara/config.h>
 
+#include <errno.h>
 #include <fcntl.h>				/* O_NONBLOCK */
 #include <mqueue.h>
 
@@ -89,22 +90,21 @@
  * Function:  mq_setattr
  *
  * Description:
- *   This function sets the attributes associated with the
- *   specified message queue "mqdes."  Only the "O_NONBLOCK"
- *   bit of the "mq_flags" can be changed.
+ *   Update the descriptor flag word associated with mqdes.  Only the
+ *   O_NONBLOCK bit of mq_flags is writable through this API; all queue
+ *   sizing fields are ignored.
  *
- *   If "oldstat" is non-null, mq_setattr() will store the
- *   previous message queue attributes at that location (just
- *   as would have been returned by mq_getattr()).
+ *   If oldstat is non-null, mq_setattr() stores the previous descriptor
+ *   snapshot at that location as if by mq_getattr().
  *
  * Parameters:
  *   mqdes - Message queue descriptor
  *   mq_stat - New attributes
- *   oldstate - Old attributes
+ *   oldstat - Old attributes
  *
  * Return Value:
- *   0 (OK) if attributes are set successfully, otherwise
- *   -1 (ERROR).
+ *   0 (OK) if the descriptor flags were updated, otherwise -1 (ERROR)
+ *   with errno set if mqdes is NULL or mq_stat itself is NULL.
  *
  * Assumptions:
  *
@@ -112,20 +112,24 @@
 
 int mq_setattr(mqd_t mqdes, const struct mq_attr *mq_stat, struct mq_attr *oldstat)
 {
-	int ret = ERROR;
-
-	if (mqdes && mq_stat) {
-		/* Return the attributes if so requested */
-
-		if (oldstat) {
-			(void)mq_getattr(mqdes, oldstat);
-		}
-
-		/* Set the new value of the O_NONBLOCK flag. */
-
-		mqdes->oflags = ((mq_stat->mq_flags & O_NONBLOCK) | (mqdes->oflags & (~O_NONBLOCK)));
-		ret = OK;
+	if (!mqdes) {
+		set_errno(EBADF);
+		return ERROR;
 	}
 
-	return ret;
+	if (!mq_stat) {
+		set_errno(EINVAL);
+		return ERROR;
+	}
+
+	/* Return the previous snapshot if so requested. */
+
+	if (oldstat) {
+		(void)mq_getattr(mqdes, oldstat);
+	}
+
+	/* Only O_NONBLOCK is writable through mq_setattr(). */
+
+	mqdes->oflags = ((mq_stat->mq_flags & O_NONBLOCK) | (mqdes->oflags & (~O_NONBLOCK)));
+	return OK;
 }

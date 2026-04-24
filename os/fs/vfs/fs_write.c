@@ -127,8 +127,10 @@ ssize_t file_write(FAR struct file *filep, FAR const void *buf, size_t nbytes)
  * Name: write
  *
  * Description:
- *  write() writes up to nytes bytes to the file referenced by the file
- *  descriptor fd from the buffer starting at buf.
+ *  Write to a VFS file descriptor or, in builds with the socket write path
+ *  enabled, route out-of-range descriptors to send(..., 0). The current
+ *  implementation also has an early fs_getfilep() failure path that returns
+ *  the negative helper result directly.
  *
  * Parameters:
  *   fd       file descriptor (or socket descriptor) to write to
@@ -136,9 +138,10 @@ ssize_t file_write(FAR struct file *filep, FAR const void *buf, size_t nbytes)
  *   nbytes   Length of data to write
  *
  * Returned Value:
- *  On success, the number of bytes  written are returned (zero indicates
- *  nothing was written). On error, -1 is returned, and errno is set appro-
- *  priately:
+ *  On success, the number of bytes written are returned (zero indicates
+ *  nothing was written). On most errors, ERROR is returned after errno is
+ *  set. Some early helper failures are returned directly as negative values
+ *  by the current wrapper:
  *
  *  EAGAIN
  *    Non-blocking I/O has been selected using O_NONBLOCK and the write
@@ -208,7 +211,7 @@ ssize_t write(int fd, FAR const void *buf, size_t nbytes)
 		ret = (ssize_t)fs_getfilep(fd, &filep);
 		if (ret >= 0) {
 			/* Perform the write operation using the file descriptor as an
-			 * index.  Note that file_write() will set the errno on failure.
+			 * index. file_write() reports failures as negative errno values.
 			 */
 
 			ret = file_write(filep, buf, nbytes);

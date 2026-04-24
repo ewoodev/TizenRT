@@ -98,7 +98,8 @@
  * Name: gettimeofday
  *
  * Description:
- *  Get the current time
+ *   Read `CLOCK_REALTIME`, convert it to `timeval`, and store the result in
+ *   the caller-provided buffer. The `tz` argument is ignored.
  *
  ****************************************************************************/
 
@@ -114,7 +115,7 @@ int gettimeofday(struct timeval *tv, FAR struct timezone *tz)
 	}
 #endif
 
-	/* Let clock_gettime do most of the work */
+	/* Let clock_gettime provide the realtime value. */
 
 	ret = clock_gettime(CLOCK_REALTIME, &ts);
 	if (ret == OK) {

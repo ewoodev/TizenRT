@@ -114,8 +114,8 @@ static inline int file_fcntl(FAR struct file *filep, int cmd, ...)
  *   asynchronous I/O operation.
  *
  * Input Parameters:
- *   arg - Worker argument.  In this case, a pointer to an instance of
- *     struct aiocb cast to void *.
+ *   arg - Worker argument.  In this case, a pointer to struct
+ *         aio_container_s cast to void *.
  *
  * Returned Value:
  *   None
@@ -126,6 +126,9 @@ static void aio_write_worker(FAR void *arg)
 {
 	FAR struct aio_container_s *aioc = (FAR struct aio_container_s *)arg;
 	FAR struct aiocb *aiocbp;
+#ifdef AIO_HAVE_FILEP
+	FAR struct file *filep;
+#endif
 	pid_t pid;
 #ifdef CONFIG_PRIORITY_INHERITANCE
 	uint8_t prio;
@@ -145,13 +148,16 @@ static void aio_write_worker(FAR void *arg)
 #ifdef CONFIG_PRIORITY_INHERITANCE
 	prio = aioc->aioc_prio;
 #endif
+#ifdef AIO_HAVE_FILEP
+	filep = aioc->u.aioc_filep;
+#endif
 	aiocbp = aioc_decant(aioc);
 
 #ifdef AIO_HAVE_FILEP
 	{
 		/* Call fcntl(F_GETFL) to get the file open mode. */
 
-		oflags = file_fcntl(aioc->u.aioc_filep, F_GETFL);
+		oflags = file_fcntl(filep, F_GETFL);
 		if (oflags < 0) {
 			int errcode = get_errno();
 			fdbg("ERROR: fcntl failed: %d\n", errcode);
@@ -172,9 +178,9 @@ static void aio_write_worker(FAR void *arg)
 		if ((oflags & O_APPEND) != 0) {
 			/* Append to the current file position */
 
-			nwritten = file_write(aioc->u.aioc_filep, (FAR const void *)aiocbp->aio_buf, aiocbp->aio_nbytes);
+			nwritten = file_write(filep, (FAR const void *)aiocbp->aio_buf, aiocbp->aio_nbytes);
 		} else {
-			nwritten = file_pwrite(aioc->u.aioc_filep, (FAR const void *)aiocbp->aio_buf, aiocbp->aio_nbytes, aiocbp->aio_offset);
+			nwritten = file_pwrite(filep, (FAR const void *)aiocbp->aio_buf, aiocbp->aio_nbytes, aiocbp->aio_offset);
 		}
 	}
 #endif
@@ -213,44 +219,21 @@ errout:
  * Name: aio_write
  *
  * Description:
- *   The aio_write() function writes aiocbp->aio_nbytes to the file
- *   associated with aiocbp->aio_fildes from the buffer pointed to by
- *   aiocbp->aio_buf. The function call will return when the write request
- *   has been initiated or queued to the file or device (even when the data
- *   cannot be delivered immediately).
+ *   Queue one low-priority worker request that writes aiocbp->aio_buf to the
+ *   file descriptor stored in aiocbp->aio_fildes.
  *
- *   If prioritized I/O is supported for this file, then the asynchronous
- *   operation will be submitted at a priority equal to a base scheduling
- *   priority minus aiocbp->aio_reqprio. If Thread Execution Scheduling is
- *   not supported, then the base scheduling priority is that of the calling
- *   thread (the latter is implemented at present).
+ *   The descriptor is resolved up front through `fs_getfilep()`, so this
+ *   entry point currently handles only file-descriptor paths that have a
+ *   `struct file` representation.  The caller's aiocb and buffer are used
+ *   in place until completion and must remain valid for the whole request.
  *
- *   The aiocbp value may be used as an argument to aio_error() and
- *   aio_return() in order to determine the error status and return status,
- *   respectively, of the asynchronous operation while it is proceeding.
+ *   The current implementation ignores aio_reqprio and aio_lio_opcode.
+ *   When `O_APPEND` is clear, the worker uses `file_pwrite()` at
+ *   aiocbp->aio_offset.  When `O_APPEND` is set, the worker uses
+ *   `file_write()` and ignores aiocbp->aio_offset.
  *
- *   The aiocbp argument points to an aiocb structure. If the buffer pointed
- *   to by aiocbp->aio_buf or the control block pointed to by aiocbp becomes
- *   an illegal address prior to asynchronous I/O completion, then the
- *   behavior is undefined.
- *
- *   If O_APPEND is not set for the file descriptor aio_fildes, then the
- *   requested operation will take place at the absolute position in the file
- *   as given by aio_offset, as if lseek() were called immediately prior to the
- *   operation with an offset equal to aio_offset and a whence equal to SEEK_SET.
- *   If O_APPEND is set for the file descriptor, write operations append to the
- *   file in the same order as the calls were made. After a successful call to
- *   enqueue an asynchronous I/O operation, the value of the file offset for the
- *   file is unspecified.
- *
- *   The aiocbp->aio_lio_opcode field will be ignored by aio_write().
- *
- *   Simultaneous asynchronous operations using the same aiocbp produce
- *   undefined results.
- *
- *   For any system action that changes the process memory space while an
- *   synchronous I/O is outstanding to the address range being changed, the
- *   result of that action is undefined.
+ *   Queueing can still block while waiting for one of the pre-allocated
+ *   AIO containers to become available.
  *
  * Input Parameters:
  *   aiocbp - A pointer to an instance of struct aiocb
@@ -265,45 +248,13 @@ errout:
  *   EAGAIN - The requested asynchronous I/O operation was not queued due to
  *     system resource limitations.
  *
- *   Each of the following conditions may be detected synchronously at the
- *   time of the call to aio_write(), or asynchronously. If any of the
- *   conditions below are detected synchronously, the aio_write() function
- *   will return -1 and set errno to the corresponding value. If any of the
- *   conditions below are detected asynchronously, the return status of the
- *   asynchronous operation is set to -1, and the error status of the
- *   asynchronous operation is set to the corresponding value.
- *
  *   EBADF - The aiocbp->aio_fildes argument is not a valid file descriptor
- *     open for writing.
- *   EINVAL - The file offset value implied by aiocbp->aio_offset would be
- *     invalid, aiocbp->aio_reqprio is not a valid value, or
- *     aiocbp->aio_nbytes is an invalid value.
+ *     open for writing, or the descriptor does not resolve through
+ *     `fs_getfilep()`.
  *
- *   In the case that the aio_write() successfully queues the I/O operation
- *   but the operation is subsequently cancelled or encounters an error, the
- *   return status of the asynchronous operation is one of the values
- *   normally returned by the write() function call. In addition, the error
- *   status of the asynchronous operation is set to one of the error
- *   statuses normally set by the write() function call, or one of the
- *   following values:
- *
- *   EBADF - The aiocbp->aio_fildes argument is not a valid file descriptor
- *     open for writing.
- *   EINVAL - The file offset value implied by aiocbp->aio_offset would be
- *     invalid.
- *   ECANCELED - The requested I/O was cancelled before the I/O completed
- *     due to an explicit aio_cancel() request.
- *
- * The following condition may be detected synchronously or asynchronously:
- *
- *   EFBIG - The file is a regular file, aiobcp->aio_nbytes is greater
- *     than 0, and the starting offset in aiobcp->aio_offset is at or
- *     beyond the offset maximum in the open file description associated
- *     with aiocbp->aio_fildes.
- *
- * POSIX Compliance:
- * - Most errors required in the standard are not detected at this point.
- *   There are no pre-queuing checks for the validity of the operation.
+ *   After queueing succeeds, the final aiocb result is either a non-negative
+ *   byte count or a negated errno value from `file_write()` or
+ *   `file_pwrite()`.
  *
  ****************************************************************************/
 

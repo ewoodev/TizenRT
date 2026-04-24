@@ -78,8 +78,12 @@
  * Dependencies:  CONFIG_ARCH_USE_MMU and CONFIG_GRAN
  */
 
-#ifndef CONFIG_MM_PGALLOC_PGSIZE
-#define CONFIG_MM_PGALLOC_PGSIZE 4096
+#ifndef CONFIG_MM_PGSIZE
+#ifdef CONFIG_MM_PGALLOC_PGSIZE
+#define CONFIG_MM_PGSIZE CONFIG_MM_PGALLOC_PGSIZE
+#else
+#define CONFIG_MM_PGSIZE 4096
+#endif
 #endif
 
 #if CONFIG_MM_PGSIZE == 1024
@@ -126,7 +130,9 @@ extern "C" {
  * Name: mm_pginitialize
  *
  * Description:
- *   Initialize the page allocator.
+ *   Initialize the global page allocator over the supplied physical memory
+ *   range.  The implementation is a thin wrapper over the granule
+ *   allocator with both granule size and alignment fixed to one page.
  *
  * Input Parameters:
  *   heap_start - The physical address of the start of memory region that
@@ -145,10 +151,10 @@ void mm_pginitialize(FAR void *heap_start, size_t heap_size);
  * Name: mm_pgreserve
  *
  * Description:
- *   Reserve memory in the page memory pool.  This will reserve the pages
- *   that contain the start and end addresses plus all of the pages
- *   in between.  This should be done early in the initialization sequence
- *   before any other allocations are made.
+ *   Reserve memory in the page memory pool.  This wrapper forwards to the
+ *   underlying granule allocator, which rounds the reserved region outward
+ *   to page boundaries.  It should be used early in the initialization
+ *   sequence before normal allocation traffic begins.
  *
  *   Reserved memory can never be allocated (it can be freed however which
  *   essentially unreserves the memory).
@@ -168,15 +174,18 @@ void mm_pgreserve(uintptr_t start, size_t size);
  * Name: mm_pgalloc
  *
  * Description:
- *   Allocate page memory from the page memory pool.
+ *   Allocate contiguous page memory from the page memory pool.
  *
  * Input Parameters:
- *   npages - The number of pages to allocate, each of size CONFIG_MM_PGSIZE.
+ *   npages - The number of contiguous pages to allocate, each of size
+ *            CONFIG_MM_PGSIZE.
  *
  * Returned Value:
  *   On success, a non-zero, physical address of the allocated page memory
  *   is returned.  Zero is returned on failure.  NOTE:  This is an unmapped
  *   physical address and cannot be used until it is appropriately mapped.
+ *   The current wrapper inherits the underlying granule allocator's maximum
+ *   contiguous run limit.
  *
  ****************************************************************************/
 
@@ -186,13 +195,13 @@ uintptr_t mm_pgalloc(unsigned int npages);
  * Name: mm_pgfree
  *
  * Description:
- *   Return page memory to the page memory pool.
+ *   Return contiguous page memory to the page memory pool.
  *
  * Input Parameters:
  *   paddr  - A physical address to a page in the page memory pool previously
  *            allocated by mm_pgalloc.
- *   npages - The number of contiguous pages to be return to the page memory
- *            pool, beginning with the page at paddr;
+ *   npages - The number of contiguous pages to be returned to the page
+ *            memory pool, beginning with the page at paddr.
  *
  * Returned Value:
  *   None

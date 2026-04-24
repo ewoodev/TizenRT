@@ -149,45 +149,20 @@ static struct posix_timer_s *timer_allocate(void)
  * Name: timer_create
  *
  * Description:
- *   The  timer_create() function creates per-thread timer using the specified
- *   clock, clock_id, as the timing base. The timer_create() function returns, in
- *   the location referenced by timerid, a timer ID of type timer_t used to identify
- *   the timer in timer requests. This timer ID is unique until the timer is
- *   deleted. The particular clock, clock_id, is defined in <time.h>. The timer
- *   whose ID is returned will be in a disarmed state upon return from
- *   timer_create().
- *
- *   The evp argument, if non-NULL, points to a sigevent structure. This structure
- *   is allocated by the called and defines the asynchronous notification to occur.
- *   If the evp argument is NULL, the effect is as if the evp argument pointed to
- *   a sigevent structure with the sigev_notify member having the value SIGEV_SIGNAL,
- *   the sigev_signo having a default signal number, and the sigev_value member
- *   having the value of the timer ID.
- *
- *   Each implementation defines a set of clocks that can be used as timing bases
- *   for per-thread timers. All implementations shall support a clock_id of
- *   CLOCK_REALTIME.
+ *   Create one watchdog-backed POSIX timer and return it in the disarmed state.
+ *   The current implementation accepts only CLOCK_REALTIME. If evp is NULL, the
+ *   timer uses SIGALRM and stores the timer handle in sigev_value.sival_ptr.
  *
  * Parameters:
  *   clockid - Specifies the clock to use as the timing base.
- *   evp - Refers to a user allocated sigevent structure that defines the
- *     asynchronous notification.  evp may be NULL (see above).
- *   timerid - The pre-thread timer created by the call to timer_create().
+ *   evp - Refers to the notification settings copied into the new timer. evp
+ *     may be NULL.
+ *   timerid - Receives the newly created timer handle.
  *
  * Return Value:
- *   If the call succeeds, timer_create() will return 0 (OK) and update the
- *   location referenced by timerid to a timer_t, which can be passed to the
- *   other per-thread timer calls.  If an error occurs, the function will return
- *   a value of -1 (ERROR) and set errno to indicate the error.
- *
- *   EAGAIN - The system lacks sufficient signal queuing resources to honor the
- *    request.
- *   EAGAIN - The calling process has already created all of the timers it is
- *     allowed by this implementation.
- *   EINVAL - The specified clock ID is not defined.
- *   ENOTSUP - The implementation does not support the creation of a timer attached
- *     to the CPU-time clock that is specified by clock_id and associated with a
- *     thread different thread invoking timer_create().
+ *   Returns OK on success. Returns ERROR and sets errno to EINVAL when timerid
+ *   is NULL or the clock is not CLOCK_REALTIME. Returns ERROR and sets errno to
+ *   EAGAIN when either the watchdog or timer allocation fails.
  *
  * Assumptions:
  *

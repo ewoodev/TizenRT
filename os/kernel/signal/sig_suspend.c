@@ -57,8 +57,7 @@
 #include <tinyara/config.h>
 
 #include <signal.h>
-#include <assert.h>
-#include <debug.h>
+#include <errno.h>
 #include <sched.h>
 
 #include <tinyara/arch.h>
@@ -96,23 +95,24 @@
  *
  * Description:
  *
- *   The sigsuspend() function replaces the signal mask of the task with the
- *   set of signals pointed to by the argument 'set' and then suspends the
- *   process until delivery of a signal to the task.
+ *   The sigsuspend() function replaces the signal mask of the calling task
+ *   with the set of signals pointed to by the argument 'set' and then
+ *   suspends the task until delivery of an unmasked signal.
  *
- *   If the effect of the set argument is to unblock a pending signal, then
- *   no wait is performed.
+ *   If the effect of the set argument is to unblock an already pending
+ *   signal, then that signal is dispatched immediately and no blocking wait
+ *   is performed.
  *
- *   The original signal mask is restored when this function returns.
+ *   The original signal mask is restored before this function returns.
  *
- *   Waiting for an empty signal set stops a task without freeing any
+ *   Waiting with an empty temporary mask stops a task without freeing any
  *   resources.
  *
  * Parameters:
  *   set - signal mask to use while suspended.
  *
  * Return Value:
- *   -1 (ERROR) always
+ *   -1 (ERROR) always with errno set to EINTR after signal delivery
  *
  * Assumptions:
  *
@@ -121,19 +121,16 @@
  *
  *   POSIX states that sigsuspend() "suspends the process until delivery of
  *   a signal whose action is either to execute a signal-catching function
- *   or to terminate the process."  Only the deliver of a signal is required
- *   in the present implementation (even if the signal is ignored).
+ *   or to terminate the process."  Only delivery of an unmasked signal is
+ *   required in the present implementation (even if the signal is ignored).
  *
  ****************************************************************************/
 
 int sigsuspend(FAR const sigset_t *set)
 {
 	FAR struct tcb_s *rtcb = this_task();
-	sigset_t intersection;
 	sigset_t saved_sigprocmask;
-	FAR sigpendq_t *sigpend;
 	irqstate_t saved_state;
-	int unblocksigno;
 
 	/* sigsuspend() is a cancellation point */
 	(void)enter_cancellation_point();
@@ -147,50 +144,35 @@ int sigsuspend(FAR const sigset_t *set)
 	sched_lock();				/* Not necessary */
 	saved_state = enter_critical_section();
 
-	/* Check if there is a pending signal corresponding to one of the
-	 * signals that will be unblocked by the new sigprocmask.
+	/* Save the old sigprocmask and install the new temporary sigprocmask. */
+
+	saved_sigprocmask = rtcb->sigprocmask;
+	rtcb->sigprocmask = *set;
+	rtcb->sigwaitmask = NULL_SIGNAL_SET;
+
+	/* If the temporary mask unblocks a pending signal, dispatch it now.
+	 * Otherwise wait until an unmasked signal is posted.
 	 */
 
-	intersection = ~(*set) & sig_pendingset(rtcb);
-	if (intersection != NULL_SIGNAL_SET) {
-		/* One or more of the signals in intersections is sufficient to cause
-		 * us to not wait.  Pick the lowest numbered signal and mark it not
-		 * pending.
-		 */
-
-		unblocksigno = sig_lowest(&intersection);
-		sigpend = sig_removependingsignal(rtcb, unblocksigno);
-		ASSERT(sigpend);
-
-		sig_releasependingsignal(sigpend);
+	if ((~(*set) & sig_pendingset(rtcb)) != NULL_SIGNAL_SET) {
 		leave_critical_section(saved_state);
-	} else {
-		/* Its time to wait. Save a copy of the old sigprocmask and install
-		 * the new (temporary) sigprocmask
-		 */
-
-		saved_sigprocmask = rtcb->sigprocmask;
-		rtcb->sigprocmask = *set;
-		rtcb->sigwaitmask = NULL_SIGNAL_SET;
-
-		/* And wait until one of the unblocked signals is posted */
-
-		up_block_task(rtcb, TSTATE_WAIT_SIG);
-
-		/* We are running again, restore the original sigprocmask */
-
-		rtcb->sigprocmask = saved_sigprocmask;
-		leave_critical_section(saved_state);
-
-		/* Now, handle the (rare?) case where (a) a blocked signal was received
-		 * while the task was suspended but (b) restoring the original
-		 * sigprocmask will unblock the signal.
-		 */
-
 		sig_unmaskpendingsignal();
+	} else {
+		up_block_task(rtcb, TSTATE_WAIT_SIG);
+		leave_critical_section(saved_state);
 	}
 
+	/* Restore the original mask, then process any signals that were pending
+	 * only because the temporary sigprocmask blocked them.
+	 */
+
+	saved_state = enter_critical_section();
+	rtcb->sigprocmask = saved_sigprocmask;
+	leave_critical_section(saved_state);
+	sig_unmaskpendingsignal();
+
 	sched_unlock();
+	set_errno(EINTR);
 	leave_cancellation_point();
 	return ERROR;
 }

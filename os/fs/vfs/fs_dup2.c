@@ -85,8 +85,9 @@
  * Name: dup2
  *
  * Description:
- *   Clone a file descriptor or socket descriptor to a specific descriptor
- *   number
+ *   In mixed file/socket builds, dispatch dup2() to fs_dupfd2() for file
+ *   descriptors or to net_dupsd2() for socket descriptors, based on the
+ *   source descriptor range.
  *
  ****************************************************************************/
 

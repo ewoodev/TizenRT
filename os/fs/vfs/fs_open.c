@@ -246,7 +246,11 @@ errout:
  * Name: open
  *
  * Description:
- *   Standard 'open' interface
+ *   Open an existing driver or mountpoint inode and return a file
+ *   descriptor. When CONFIG_FILE_MODE is enabled, the current
+ *   implementation consumes a mode argument whenever O_WRONLY or O_CREAT
+ *   is set, but missing paths still fail with ENOENT instead of creating
+ *   a new inode.
  *
  * Returned Value:
  *   The new file descriptor is returned on success; -1 (ERROR) is returned

@@ -53,26 +53,64 @@
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: sig_sethandler
+ *
+ * Description:
+ *   Install or replace one signal action entry on the target task's
+ *   sigaction queue.  Unlike sigaction(), this helper operates on the
+ *   caller-supplied TCB rather than always using the currently running
+ *   task.
+ *
+ * Parameters:
+ *   tcb   - Target task whose action queue will be updated
+ *   signo - Signal number to install or replace
+ *   act   - Replacement action to copy into the queue entry
+ *
+ * Return Value:
+ *   OK on success; ERROR on failure with errno set.
+ *
+ *   EINVAL: 'tcb' or 'act' is NULL, or 'signo' is invalid.
+ *   ENOMEM: A new sigaction queue entry was required but could not be
+ *           allocated.
+ *
+ ****************************************************************************/
+
 int sig_sethandler(struct tcb_s *tcb, int signo, struct sigaction *act)
 {
 	sigactq_t *sigact;
 
-	sched_lock();
-
-	/* No.. Then we need to allocate one for the new action. */
-	sigact = (sigactq_t *)sig_allocateaction();
-
-	/* An error has occurred if we could not allocate the sigaction */
-	if (!sigact) {
-		set_errno(ENOMEM);
+	if (tcb == NULL || act == NULL || !GOOD_SIGNO(signo)) {
+		set_errno(EINVAL);
 		return ERROR;
 	}
 
-	/* Put the signal number in the queue entry */
-	sigact->signo = (uint8_t)signo;
+	sched_lock();
 
-	/* Add the new sigaction to sigactionq */
-	sq_addlast((FAR sq_entry_t *)sigact, &tcb->sigactionq);
+	/* Reuse an existing entry for this signal when present. */
+	for (sigact = (sigactq_t *)tcb->sigactionq.head;
+			(sigact != NULL) && (sigact->signo != signo);
+			sigact = sigact->flink) {
+	}
+
+	if (sigact == NULL) {
+		/* No.. Then we need to allocate one for the new action. */
+		sigact = (sigactq_t *)sig_allocateaction();
+
+		/* An error has occurred if we could not allocate the sigaction */
+		if (sigact == NULL) {
+			sched_unlock();
+			set_errno(ENOMEM);
+			return ERROR;
+		}
+
+		/* Put the signal number in the queue entry */
+		sigact->signo = (uint8_t)signo;
+
+		/* Add the new sigaction to sigactionq */
+		sq_addlast((FAR sq_entry_t *)sigact, &tcb->sigactionq);
+	}
 	COPY_SIGACTION(&sigact->act, act);
 
 	sched_unlock();

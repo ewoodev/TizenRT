@@ -76,13 +76,12 @@
  * Name: gran_common_reserve
  *
  * Description:
- *   Reserve memory in the granule heap.  This will reserve the granules
- *   that contain the start and end addresses plus all of the granules
- *   in between.  This should be done early in the initialization sequence
- *   before any other allocations are made.
+ *   Reserve memory in the granule heap.  The implementation rounds start
+ *   down and the inclusive end address up to the surrounding granule
+ *   boundaries, then marks every granule in that span as allocated.
  *
- *   Reserved memory can never be allocated (it can be freed however which
- *   essentially unreserves the memory).
+ *   Reserved memory can later be released with gran_free().  This helper is
+ *   intended for early carve-out use before concurrent allocations begin.
  *
  * Input Parameters:
  *   priv  - The granule heap state structure.
@@ -126,16 +125,17 @@ static inline void gran_common_reserve(FAR struct gran_s *priv, uintptr_t start,
  * Name: gran_reserve
  *
  * Description:
- *   Reserve memory in the granule heap.  This will reserve the granules
- *   that contain the start and end addresses plus all of the granules
- *   in between.  This should be done early in the initialization sequence
- *   before any other allocations are made.
+ *   Reserve memory in the granule heap.  The implementation rounds start
+ *   down and the inclusive end address up to the surrounding granule
+ *   boundaries, then marks every granule in that span as allocated.
  *
- *   Reserved memory can never be allocated (it can be freed however which
- *   essentially unreserves the memory).
+ *   Reserved memory can later be released with gran_free().  This entry
+ *   point is intended for early carve-out use before concurrent allocations
+ *   begin.
  *
  * Input Parameters:
- *   handle - The handle previously returned by gran_initialize
+ *   If CONFIG_GRAN_SINGLE=y, no handle is required.
+ *   Otherwise, handle is the value previously returned by gran_initialize().
  *   start  - The address of the beginning of the region to be reserved.
  *   size   - The size of the region to be reserved
  *

@@ -74,23 +74,73 @@ extern "C"
  * @cond
  * @internal
  */
+/**
+ * @brief Start the background logger task.
+ *
+ * @details
+ * Creates the `logm` kernel thread with the priority and stack size selected
+ * by Kconfig. When `CONFIG_TASH` is enabled, the function also registers the
+ * `logm` shell command after the thread has been created successfully.
+ *
+ * If the thread creation fails, the function returns without changing logger
+ * state or reporting an error.
+ */
 void logm_start(void);
 /**
- * @internal
+ * @brief Format a log message and route it to the active logger backend.
+ *
+ * @details
+ * When the logger task is ready and the call is made from normal thread
+ * context, the function appends the formatted message to the ring buffer and
+ * optionally prepends a timestamp. During early boot, buffer resize, or
+ * interrupt context, it falls back to the low-level output path when that
+ * backend is available.
+ *
+ * If the ring buffer is already marked as overflowed, the message is dropped
+ * and the drop counter is incremented.
+ *
+ * @return
+ * Returns the formatted character count produced by `lib_vsprintf()` on the
+ * active backend, or `0` when the message is dropped before formatting.
  */
 int logm_internal(int flag, int indx, int priority, const char *fmt, va_list valst);
 /**
- * @internal
+ * @brief Variadic wrapper around `logm_internal()`.
+ *
+ * @details
+ * Collects the variable argument list and forwards the formatted log request
+ * to `logm_internal()`.
+ *
+ * @return
+ * Returns the value produced by `logm_internal()`.
  */
 int logm(int flag, int indx, int priority, const char *fmt, ...);
 /**
- * @internal
+ * @brief Update a runtime logger parameter.
+ *
+ * @details
+ * `LOGM_BUFSIZE` stores a resize request rounded up to a 4-byte boundary.
+ * `LOGM_INTERVAL` updates the background flush interval in microseconds.
+ * This function does not set `LOGM_BUFFER_RESIZE_REQ`; callers that want the
+ * new buffer size to take effect must arrange that signal separately. Unknown
+ * parameter types are ignored.
+ *
+ * @return
+ * Always returns `0`.
  */
 int logm_set_values(enum logm_param_type_e type, int value);
 /**
- * @internal
+ * @brief Read a runtime logger parameter.
+ *
+ * @details
+ * `LOGM_BUFSIZE` returns the current ring-buffer size in bytes.
+ * `LOGM_INTERVAL` returns the current flush interval in milliseconds.
+ * Unknown parameter types are ignored.
+ *
+ * @return
+ * Always returns `0`.
  */
-int logm_get_values(enum logm_param_type_e type, int* value);
+int logm_get_values(enum logm_param_type_e type, int *value);
 /**
  * @endcond
  */
@@ -100,4 +150,3 @@ int logm_get_values(enum logm_param_type_e type, int* value);
 #endif
 
 #endif /* __OS_INCLUDE_TINYARA_LOGM_H */
-

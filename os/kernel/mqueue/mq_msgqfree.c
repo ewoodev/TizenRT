@@ -88,14 +88,13 @@
  * Name: mq_msgqfree
  *
  * Description:
- *   This function deallocates an initialized message queue structure.
- *   First, it deallocates all of the queued messages in the message
- *   queue.  It is assumed that this message is fully unlinked and
- *   closed so that no thread will attempt access it while it is being
- *   deleted.
+ *   This function deallocates an initialized message queue structure
+ *   after named-queue lifetime management has already made it
+ *   unreachable.  It first releases every queued message through
+ *   mq_msgfree(), then frees the queue object itself.
  *
  * Inputs:
- *   msgq - Named essage queue to be freed
+ *   msgq - Named message queue to be freed
  *
  * Return Value:
  *   None
@@ -107,7 +106,7 @@ void mq_msgqfree(FAR struct mqueue_inode_s *msgq)
 	FAR struct mqueue_msg_s *curr;
 	FAR struct mqueue_msg_s *next;
 
-	/* Deallocate any stranded messages in the message queue. */
+	/* Release any queued messages that are still attached to the queue. */
 
 	curr = (FAR struct mqueue_msg_s *)msgq->msglist.head;
 	while (curr) {
@@ -118,7 +117,7 @@ void mq_msgqfree(FAR struct mqueue_inode_s *msgq)
 		curr = next;
 	}
 
-	/* Then deallocate the message queue itself */
+	/* Then deallocate the message queue object itself. */
 
 	sched_kfree(msgq);
 }

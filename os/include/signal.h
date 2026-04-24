@@ -432,10 +432,12 @@ extern "C" {
 #endif
 /**
  * @ingroup SIGNAL_KERNEL
- * @brief send a signal to a process or a group of processes
+ * @brief send a signal to one task identified by a positive pid
  * @details @b #include <signal.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * The current `os/kernel/signal` owner does not support process-group
+ * delivery. Positive pid values target one task or task group owner, and
+ * `sig == 0` performs existence checking without dispatching a signal.
  * @since TizenRT v1.0
  */
 int kill(pid_t pid, int sig);
@@ -593,10 +595,15 @@ CODE void (*signal(int sig, CODE void (*func)(int sig)))(int sig);
 
 /**
  * @ingroup SIGNAL_KERNEL
- * @brief examine and change a signal action
+ * @brief examine or replace the calling task's action for one signal
  * @details @b #include <signal.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * The current `os/kernel/signal` owner stores signal actions per task in
+ * the TCB signal-action queue. `SIG_DFL` is treated like `SIG_IGN`, most
+ * `sa_flags` are ignored, and `SA_NOCLDWAIT` is honored only for
+ * `SIGCHLD`. When `CONFIG_SIGKILL_HANDLER` is enabled, the `SIGKILL` path
+ * uses the dedicated `sa_sigaction` slot in the TCB instead of the normal
+ * queue.
  * @since TizenRT v1.0
  */
 int sigaction(int sig, FAR const struct sigaction *act, FAR struct sigaction *oact);
@@ -605,10 +612,12 @@ int sigaction(int sig, FAR const struct sigaction *act, FAR struct sigaction *oa
 
 /**
  * @ingroup SIGNAL_KERNEL
- * @brief examine and change blocked signals
+ * @brief examine or replace the calling task's blocked-signal mask
  * @details @b #include <signal.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * The current `os/kernel/signal` owner updates the calling task's
+ * `sigprocmask`, optionally returns the previous mask, and then checks for
+ * newly unblocked pending signals before returning.
  * @since TizenRT v1.0
  */
 int sigprocmask(int how, FAR const sigset_t *set, FAR sigset_t *oset);
@@ -623,19 +632,25 @@ int sigprocmask(int how, FAR const sigset_t *set, FAR sigset_t *oset);
 int sigpending(FAR sigset_t *set);
 /**
  * @ingroup SIGNAL_KERNEL
- * @brief wait for a signal
+ * @brief temporarily replace the calling task's mask and wait for signal delivery
  * @details @b #include <signal.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * The current `os/kernel/signal` owner installs the supplied temporary mask,
+ * waits for any signal not blocked by that mask, restores the original mask,
+ * and always returns `ERROR` with `errno = EINTR`. If the temporary mask
+ * unblocks already-pending signals, they are dispatched immediately without a
+ * blocking sleep.
  * @since TizenRT v1.0
  */
 int sigsuspend(FAR const sigset_t *sigmask);
 /**
  * @ingroup SIGNAL_KERNEL
- * @brief wait for queued signals
+ * @brief wait indefinitely for one queued signal from a caller-selected set
  * @details @b #include <signal.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * This owner is a thin wrapper over `sigtimedwait(set, value, NULL)`. The
+ * wait can still fail with `EINTR` if an unrelated unmasked signal interrupts
+ * it first.
  * @since TizenRT v1.0
  */
 int sigwaitinfo(FAR const sigset_t *set, FAR struct siginfo *value);
@@ -657,19 +672,27 @@ int sigwait(FAR const sigset_t *set, FAR int *sig);
 
 /**
  * @ingroup SIGNAL_KERNEL
- * @brief wait for queued signals
+ * @brief wait for one queued signal from a caller-selected set, optionally with timeout
  * @details @b #include <signal.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * The current `os/kernel/signal` owner consumes the lowest-numbered pending
+ * signal in `set` or blocks in `TSTATE_WAIT_SIG` until a matching signal,
+ * an unrelated unmasked signal, or the relative timeout occurs. The caller
+ * should block the signals in `set` beforehand if it needs handler-free
+ * consumption. Timed waits use a per-task watchdog and report timeout through
+ * `errno = EAGAIN`; when `value` is non-NULL, the timeout wake also copies a
+ * synthetic `siginfo` record with `SI_TIMER`.
  * @since TizenRT v1.0
  */
 int sigtimedwait(FAR const sigset_t *set, FAR struct siginfo *value, FAR const struct timespec *timeout);
 /**
  * @ingroup SIGNAL_KERNEL
- * @brief queue a signal to a process
+ * @brief queue one signal plus a caller-supplied value to one pid
  * @details @b #include <signal.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * The current `os/kernel/signal` owner forwards the request to
+ * `sig_dispatch()` with `SI_QUEUE` metadata. Process-group delivery is not
+ * supported here.
  * @since TizenRT v1.0
  */
 #ifdef CONFIG_CAN_PASS_STRUCTS

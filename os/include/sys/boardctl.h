@@ -75,17 +75,9 @@
  *
  * CMD:           BOARDIOC_INIT
  * DESCRIPTION:   Perform one-time application initialization.
- * ARG:           The boardctl() argument is passed to the
- *                board_app_initialize() implementation without modification.
- *                The argument has no meaning to NuttX; the meaning of the
- *                argument is a contract between the board-specific
- *                initalization logic and the matching application logic.
- *                The value cold be such things as a mode enumeration value,
- *                a set of DIP switch switch settings, a pointer to
- *                configuration data read from a file or serial FLASH, or
- *                whatever you would like to do with it.  Every
- *                implementation should accept zero/NULL as a default
- *                configuration.
+ * ARG:           The current os/arch/boardctl.c implementation ignores this
+ *                argument for BOARDIOC_INIT and simply calls
+ *                board_app_initialize() with no parameters.
  * CONFIGURATION: CONFIG_LIB_BOARDCTL
  * DEPENDENCIES:  Board logic must provide board_app_initialize()
  *
@@ -114,11 +106,11 @@
 #define BOARDIOC_RESET             _BOARDIOC(0x0003)
 #define BOARDIOC_UNIQUEID          _BOARDIOC(0x0004)
 
-/* If CONFIG_BOARDCTL_IOCTL=y, then boad-specific commands will be support.
- * In this case, all commands not recognized by boardctl() will be forwarded
- * to the board-provided board_ioctl() function.
+/* User-defined board commands may begin with this value.
  *
- * User defined board commands may begin with this value:
+ * The current os/arch/boardctl.c implementation only handles the built-in
+ * BOARDIOC_* commands listed above. Commands outside that set fail with
+ * ENOTTY unless the implementation is extended to dispatch them.
  */
 
 #define BOARDIOC_USER              _BOARDIOC(0x000d)
@@ -151,11 +143,13 @@ extern "C"
  *   calls.  This, however, may not be practical in many cases and will lead
  *   to "correct" but awkward implementations.
  *
- *   boardctl() is non-standard OS interface to alleviate the problem.  It
- *   basically circumvents the normal device driver ioctl interlace and allows
- *   the application to perform direct IOCTL-like calls to the board-specific
- *   logic.  It is especially useful for setting up board operational and
- *   test configurations.
+ *   boardctl() is a non-standard OS interface that avoids having to expose
+ *   every board-management hook through a character driver. The current
+ *   implementation handles a fixed set of built-in commands such as
+ *   initialization, reset, power-off, and unique-ID retrieval when the
+ *   corresponding configuration options are enabled. In the current
+ *   implementation, BOARDIOC_INIT ignores the public arg value and calls
+ *   board_app_initialize() with no parameters.
  *
  * Input Parameters:
  *   cmd - Identifies the board command to be executed
@@ -163,8 +157,9 @@ extern "C"
  *         argument is determined by the specific command.
  *
  * Returned Value:
- *   On success zero (OK) is returned; -1 (ERROR) is returned on failure
- *   with the errno variable to to indicate the nature of the failure.
+ *   On success zero (OK) is returned. On failure, -1 (ERROR) is returned and
+ *   errno is set from the negative status provided by the selected board hook
+ *   or to ENOTTY for unsupported commands.
  *
  ****************************************************************************/
 int boardctl(unsigned int cmd, uintptr_t arg);

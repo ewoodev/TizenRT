@@ -19,6 +19,7 @@
 /****************************************************************************
  * Included Files
  ****************************************************************************/
+#include <signal.h>
 #include <sched.h>
 #include <stdbool.h>
 
@@ -46,14 +47,28 @@
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
+
+/****************************************************************************
+ * Name: sig_is_handler_registered
+ *
+ * Description:
+ *   Return true when the target task currently has a sigaction queue entry
+ *   for the requested signal number.
+ *
+ * Parameters:
+ *   tcb   - Target task to inspect
+ *   signo - Signal number to look up
+ *
+ * Return Value:
+ *   true when an action entry exists; false otherwise.
+ *
+ ****************************************************************************/
+
 bool sig_is_handler_registered(struct tcb_s *tcb, int signo)
 {
-	bool ret = false;
-	sigactq_t *sigact = NULL;
-	sigact = sig_findaction(tcb, signo);
-	if (sigact != NULL) {
-		ret = true;
+	if (tcb == NULL || !GOOD_SIGNO(signo)) {
+		return false;
 	}
 
-	return ret;
+	return sig_findaction(tcb, signo) != NULL;
 }

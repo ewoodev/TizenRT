@@ -189,7 +189,8 @@ static inline void seekmountptdir(struct fs_dirent_s *idir, off_t offset)
  * Description:
  *   The seekdir() function sets the location in the directory stream from
  *   which the next readdir() call will start.  seekdir() should be used with
- *   an offset returned by telldir().
+ *   an offset returned by telldir(). The current implementation is best-effort
+ *   and has no way to report failures to the caller.
  *
  * Inputs:
  *   dirp -- An instance of type DIR created by a previous
@@ -197,7 +198,8 @@ static inline void seekmountptdir(struct fs_dirent_s *idir, off_t offset)
  *   offset -- offset to seek to
  *
  * Return:
- *   None
+ *   None. Invalid streams and unsupported mountpoints are ignored silently.
+ *   Pseudo-filesystem seeks clamp to the furthest reachable position.
  *
  ****************************************************************************/
 

@@ -167,37 +167,10 @@ static inline FAR struct gran_s *gran_common_initialize(FAR void *heapstart, siz
  * Name: gran_initialize
  *
  * Description:
- *   Set up one granule allocator instance.  Allocations will be aligned to
- *   the alignment size (log2align; allocations will be in units of the
- *   granule size (log2gran). Larger granules will give better performance
- *   and less overhead but more losses of memory due to quantization waste.
- *   Additional memory waste can occur from alignment; log2align should be
- *   set to 0 unless you are using the granule allocator to manage DMA
- *   or page-aligned memory and your hardware has specific memory alignment
- *   requirements.
- *
- *   General Usage Summary.  This is an example using the GCC section
- *   attribute to position a DMA heap in memory (logic in the linker script
- *   would assign the section .dmaheap to the DMA memory.
- *
- *     FAR uint32_t g_dmaheap[DMAHEAP_SIZE] __attribute__((section(.dmaheap)));
- *
- *   The heap is created by calling gran_initialize().  Here the granule size
- *   is set to 64 bytes (2**6) and the alignment to 16 bytes (2**4):
- *
- *     GRAN_HANDLE handle = gran_initialize(g_dmaheap, DMAHEAP_SIZE, 6, 4);
- *
- *   Then the GRAN_HANDLE can be used to allocate memory (There is no
- *   GRAN_HANDLE if CONFIG_GRAN_SINGLE=y):
- *
- *     FAR uint8_t *dma_memory = (FAR uint8_t *)gran_alloc(handle, 47);
- *
- *   The actual memory allocates will be 64 byte (wasting 17 bytes) and
- *   will be aligned at least to (1 << log2align).
- *
- *   NOTE: The current implementation also restricts the maximum allocation
- *   size to 32 granules.  That restriction could be eliminated with some
- *   additional coding effort.
+ *   Initialize one bitmap-backed granule allocator over the caller-supplied
+ *   heap region.  The usable heap start is rounded up to the requested
+ *   alignment, the usable heap size is rounded down to a whole number of
+ *   granules, and allocator metadata is allocated separately from the heap.
  *
  * Input Parameters:
  *   heapstart - Start of the granule allocation heap
@@ -212,8 +185,9 @@ static inline FAR struct gran_s *gran_common_initialize(FAR void *heapstart, siz
  *               would mean that no alignment is required.
  *
  * Returned Value:
- *   On success, a non-NULL handle is returned that may be used with other
- *   granule allocator interfaces.
+ *   If CONFIG_GRAN_SINGLE=y, returns OK on success or -ENOMEM when metadata
+ *   allocation fails.
+ *   Otherwise, returns a non-NULL handle on success or NULL on failure.
  *
  ****************************************************************************/
 

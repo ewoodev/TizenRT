@@ -87,22 +87,16 @@
  * Name: timer_delete
  *
  * Description:
- *   The timer_delete() function deletes the specified timer, timerid, previously
- *   created by the timer_create() function. If the timer is armed when
- *   timer_delete() is called, the timer will be automatically disarmed before
- *   removal. The disposition of pending signals for the deleted timer is
- *   unspecified.
+ *   Release one reference to the specified timer. When the last reference is
+ *   dropped, the watchdog is deleted, the timer is marked unused, and the timer
+ *   structure is freed or returned to the preallocated pool.
  *
  * Parameters:
- *   timerid - The per-thread timer, previously created by the call to
- *   timer_create(), to be deleted.
+ *   timerid - The timer returned by timer_create().
  *
  * Return Value:
- *   If the call succeeds, timer_create() will return 0 (OK).  Otherwise, the
- *   function will return a value of -1 (ERROR) and set errno to indicate the
- *   error.
- *
- *   EINVAL - The timer specified timerid is not valid.
+ *   Returns OK on success. Returns ERROR and sets errno when timer_release()
+ *   rejects the handle, currently only with EINVAL.
  *
  * Assumptions:
  *

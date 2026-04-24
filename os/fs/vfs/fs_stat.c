@@ -87,16 +87,17 @@ static inline int statroot(FAR struct stat *buf)
 /****************************************************************************
  * Name: stat
  *
- * Returned Value:
- *   Zero on success; -1 on failure with errno set:
+ * Description:
+ *   Attempt to return metadata for an exact root path, a mountpoint-owned
+ *   path, or a pseudo-filesystem inode. The exact `/` path is synthesized
+ *   through statroot(). Other paths are resolved through inode_find(), then
+ *   routed either to the mountpoint stat hook when that hook exists or to
+ *   inode_stat().
  *
- *   EACCES  Search permission is denied for one of the directories in the
- *           path prefix of path.
- *   EFAULT  Bad address.
- *   ENOENT  A component of the path path does not exist, or the path is an
- *           empty string.
- *   ENOMEM  Out of memory
- *   ENOTDIR A component of the path is not a directory.
+ * Returned Value:
+ *   OK on success, or ERROR on failure with errno set. The current
+ *   implementation does not force an error when a mountpoint is found but
+ *   does not supply a stat() hook.
  *
  ****************************************************************************/
 

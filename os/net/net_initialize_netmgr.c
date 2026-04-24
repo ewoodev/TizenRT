@@ -40,19 +40,13 @@ extern void vble_start(void);
 #endif
 extern int trwifi_run_handler(void);
 /****************************************************************************
- * Name: netmgr_setup
+ * Name: net_setup
  *
  * Description:
- *   This is called from the OS initialization logic at power-up reset in
- *   order to configure networking data structures.  This is called prior
- *   to platform-specific driver initialization so that the networking
- *   subsystem is prepared to deal with network driver initialization
- *   actions.
- *
- *   Actions performed in this initialization phase assume that base OS
- *   facilities such as semaphores are available but this logic cannot
- *   depend upon OS resources such as interrupts or timers which are not
- *   yet available.
+ *   This is called from the OS initialization logic before driver bring-up
+ *   to prepare the networking subsystem.  The current implementation can
+ *   allocate/register the LWNL manager device, invoke the default socket
+ *   netstack init hook, and then start the network-device manager.
  *
  * Input Parameters:
  *   None
@@ -88,13 +82,13 @@ void net_setup(void)
 }
 
 /****************************************************************************
- * Name: netmgr_start
+ * Name: net_initialize
  *
  * Description:
- *   This function is called from the OS initialization logic at power-up
- *   reset AFTER initialization of hardware facilities such as timers and
- *   interrupts.   This logic completes the initialization started by
- *   net_setup().
+ *   This function completes networking bring-up after hardware facilities
+ *   such as timers and interrupts are available.  The current
+ *   implementation optionally starts virtual interfaces, then starts the
+ *   default socket netstack and the TRWiFi event handler.
  *
  * Input Parameters:
  *   None

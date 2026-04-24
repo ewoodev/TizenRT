@@ -111,19 +111,19 @@ static int poll_semtake(FAR sem_t *sem)
  * Name: poll_fdsetup
  *
  * Description:
- *   Configure (or unconfigure) one file/socket descriptor for the poll
- *   operation.  If fds and sem are non-null, then the poll is being setup.
- *   if fds and sem are NULL, then the poll is being torn down.
+ *   Configure or tear down one descriptor for the poll operation by routing
+ *   file-table descriptors to fdesc_poll() and configured socket descriptors
+ *   to net_poll().
  *
  ****************************************************************************/
 
 #if CONFIG_NFILE_DESCRIPTORS > 0
 static int poll_fdsetup(int fd, FAR struct pollfd *fds, bool setup)
 {
-	/* Check for a valid file descriptor */
+	/* Check whether this descriptor falls outside the file table. */
 
 	if ((unsigned int)fd >= CONFIG_NFILE_DESCRIPTORS) {
-		/* Perform the socket ioctl */
+		/* Try the configured socket descriptor range next. */
 
 #if defined(CONFIG_NET) && CONFIG_NSOCKET_DESCRIPTORS > 0
 		if ((unsigned int)fd < (CONFIG_NFILE_DESCRIPTORS + CONFIG_NSOCKET_DESCRIPTORS)) {
@@ -253,14 +253,13 @@ static inline int poll_teardown(FAR struct pollfd *fds, nfds_t nfds, int *count,
  * Name: file_poll
  *
  * Description:
- *   Low-level poll operation based on struct file.  This is used both to (1)
- *   support detached file, and also (2) by fdesc_poll() to perform all
- *   normal operations on file descriptors descriptors.
+ *   Low-level poll operation based on a struct file slot. This is used both
+ *   to support detached-file polling and to implement the descriptor-backed
+ *   path in fdesc_poll().
  *
  * Input Parameters:
  *   file     File structure instance
- *   fds   - The structure describing the events to be monitored, OR NULL if
- *           this is a request to stop monitoring events.
+ *   fds   - The live pollfd structure describing the events to be monitored.
  *   setup - true: Setup up the poll; false: Teardown the poll
  *
  * Returned Value:
@@ -276,15 +275,17 @@ int file_poll(FAR struct file *filep, FAR struct pollfd *fds, bool setup)
 	DEBUGASSERT(filep != NULL);
 	inode = filep->f_inode;
 
-	/* If inode is null, notify error result */
+	/* Treat a missing inode like a lost connection and wake the waiter. */
 	if (inode == NULL) {
-		/* Error case, it is lost connection, There can be readable data exist */
+		/* A hangup may still leave readable data pending, but POLLOUT is no
+		 * longer meaningful in this state.
+		 */
 		fds->revents |= (POLLERR | POLLHUP);
 		fds->revents &= ~POLLOUT;
 		sem_post(fds->sem);
 		return OK;
 	}
-	
+
 	/* Is a driver registered? Does it support the poll method?
 	 * If not, return -ENOSYS
 	 */
@@ -296,9 +297,8 @@ int file_poll(FAR struct file *filep, FAR struct pollfd *fds, bool setup)
 		ret = (int)inode->u.i_ops->poll(filep, fds, setup);
 	}
 
-	/* Regular files (and block devices) are always readable and
-	 * writable. Open Group: "Regular files shall always poll TRUE for
-	 * reading and writing."
+	/* Mountpoints and block devices are treated as always ready for the
+	 * requested read/write events when the registration is set up.
 	 */
 
 	if (INODE_IS_MOUNTPT(inode) || INODE_IS_BLOCK(inode)) {
@@ -319,13 +319,12 @@ int file_poll(FAR struct file *filep, FAR struct pollfd *fds, bool setup)
  * Name: fdesc_poll
  *
  * Description:
- *   The standard poll() operation redirects operations on file descriptors
- *   to this function.
+ *   Resolve a file-table descriptor slot with fs_getfilep() and forward the
+ *   request to file_poll().
  *
  * Input Parameters:
  *   fd    - The file descriptor of interest
- *   fds   - The structure describing the events to be monitored, OR NULL if
- *           this is a request to stop monitoring events.
+ *   fds   - The live pollfd structure describing the events to be monitored.
  *   setup - true: Setup up the poll; false: Teardown the poll
  *
  * Returned Value:
@@ -357,22 +356,21 @@ int fdesc_poll(int fd, FAR struct pollfd *fds, bool setup)
  * Name: poll
  *
  * Description:
- *   poll() waits for one of a set of file descriptors to become ready to
- *   perform I/O.  If none of the events requested (and no error) has
- *   occurred for any of  the  file  descriptors,  then  poll() blocks until
- *   one of the events occurs.
+ *   poll() initializes a shared semaphore in each pollfd entry, registers
+ *   the descriptors through the VFS or network poll backends, optionally
+ *   waits for an event or timeout, and then tears the registrations down
+ *   before reporting the number of entries whose revents field is non-zero.
  *
  * Input Parameters:
  *   fds  - List of structures describing file descriptors to be monitored
  *   nfds - The number of entries in the list
- *   timeout - Specifies an upper limit on the time for which poll() will
- *     block in milliseconds.  A negative value of timeout means an infinite
- *     timeout.
+ *   timeout - Upper limit on the wait in milliseconds. A value of zero
+ *     returns after setup, and a negative value means an infinite timeout.
  *
  * Returned Value:
  *   On success, the number of structures that have non-zero revents fields.
  *   A value of 0 indicates that the call timed out and no file descriptors
- *   were ready.  On error, -1 is returned, and errno is set appropriately:
+ *   were ready. On error, -1 is returned and errno is set appropriately:
  *
  *   EBADF  - An invalid file descriptor was given in one of the sets.
  *   EFAULT - The fds address is invalid
@@ -416,8 +414,8 @@ int poll(FAR struct pollfd *fds, nfds_t nfds, int timeout)
 			time_t sec;
 			uint32_t nsec;
 
-			/* Either wait for either a poll event(s), for a signal to occur,
-			 * or for the specified timeout to elapse with no event.
+			/* Wait for a poll event, a signal, or the CLOCK_REALTIME-based
+			 * absolute deadline to elapse with no event.
 			 *
 			 * NOTE: If a poll event is pending (i.e., the semaphore has already
 			 * been incremented), sem_timedwait() will not wait, but will return

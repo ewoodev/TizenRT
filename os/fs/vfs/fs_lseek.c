@@ -152,21 +152,11 @@ errout:
  * Name: lseek
  *
  * Description:
- *   The lseek() function repositions the offset of the open file associated
- *   with the file descriptor fd to the argument 'offset' according to the
- *   directive 'whence' as follows:
- *
- *   SEEK_SET
- *      The offset is set to offset bytes.
- *   SEEK_CUR
- *      The offset is set to its current location plus offset bytes.
- *   SEEK_END
- *      The offset is set to the size of the file plus offset bytes.
- *
- *  The lseek() function allows the file offset to be set beyond the end of the
- *  file (but this does not change the size of the file). If data is later written
- *  at this point, subsequent reads of the data in the gap (a "hole") return null
- *  bytes ('\0') until data is actually written into the gap.
+ *   Reposition a VFS file descriptor by delegating to file_seek(). When the
+ *   underlying inode does not provide a seek method, only SEEK_SET and
+ *   SEEK_CUR are synthesized in the common file structure; SEEK_END fails
+ *   with ENOSYS. The wrapper relies on helper-side errno handling and can
+ *   overwrite a detailed helper errno when file_seek() collapses to ERROR.
  *
  * Parameters:
  *   fd       File descriptor of device
@@ -174,14 +164,9 @@ errout:
  *   whence   Defines how to use offset
  *
  * Return:
- *   The resulting offset on success.  -1 on failure withi errno set properly:
- *
- *   EBADF      fd is not an open file descriptor.
- *   EINVAL     whence  is  not one of SEEK_SET, SEEK_CUR, SEEK_END; or the
- *              resulting file offset would be negative, or beyond the end of a
- *              seekable device.
- *   EOVERFLOW  The resulting file offset cannot be represented in an off_t.
- *   ESPIPE     fd is associated with a pipe, socket, or FIFO.
+ *   The resulting offset on success. ERROR on failure. Invalid descriptors
+ *   are reported through fs_getfilep(); seek-helper failures depend on the
+ *   current file_seek() implementation.
  *
  ****************************************************************************/
 

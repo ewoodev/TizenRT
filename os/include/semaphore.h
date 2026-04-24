@@ -194,86 +194,105 @@ struct timespec;				/* Defined in time.h */
 /* Counting Semaphore Interfaces (based on POSIX APIs) */
 /**
  * @ingroup SEMAPHORE_KERNEL
- * @brief initialize an unnamed semaphore
+ * @brief Initialize an unnamed semaphore with an initial count.
  * @details @b #include <semaphore.h> \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * The current implementation accepts `pshared` for API compatibility but does
+ * not use it when initializing the semaphore state.
  * @since TizenRT v1.0
  */
 int sem_init(FAR sem_t *sem, int pshared, unsigned int value);
 
 /**
  * @ingroup SEMAPHORE_KERNEL
- * @brief destroy an unnamed semaphore
+ * @brief Destroy an unnamed semaphore.
  * @details @b #include <semaphore.h> \n
- * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * The current implementation clears the initialized flag and tears down holder
+ * bookkeeping. It does not wake waiting threads before returning.
  * @since TizenRT v1.0
  */
 int sem_destroy(FAR sem_t *sem);
 /**
  * @ingroup SEMAPHORE_KERNEL
- * @brief lock a semaphore
+ * @brief Wait until a semaphore count becomes available.
  * @details @b #include <semaphore.h> \n
- * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * This call blocks the caller when the current count is zero or negative and
+ * may return early when the wait is interrupted or canceled.
  * @since TizenRT v1.0
  */
 int sem_wait(FAR sem_t *sem);
 /**
  * @ingroup SEMAPHORE_KERNEL
- * @brief lock a semaphore
+ * @brief Wait for a semaphore until an absolute timeout expires.
  * @details @b #include <semaphore.h> \n
- * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * The timeout is interpreted against `CLOCK_REALTIME` and the implementation
+ * first attempts a non-blocking acquire before arming a watchdog.
  * @since TizenRT v1.0
  */
 int sem_timedwait(FAR sem_t *sem, FAR const struct timespec *abstime);
 /**
  * @ingroup SEMAPHORE_KERNEL
- * @brief lock a semaphore
+ * @brief Try to acquire a semaphore without blocking.
  * @details @b #include <semaphore.h> \n
- * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * This call returns immediately with `EAGAIN` when no count is available.
  * @since TizenRT v1.0
  */
 int sem_trywait(FAR sem_t *sem);
 /**
  * @ingroup SEMAPHORE_KERNEL
- * @brief unlock a semaphore
+ * @brief Release one semaphore count.
  * @details @b #include <semaphore.h> \n
- * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * The implementation increments the count and wakes one waiting thread when
+ * present. This API may be called from interrupt context.
  * @since TizenRT v1.0
  */
 int sem_post(FAR sem_t *sem);
 /**
  * @ingroup SEMAPHORE_KERNEL
- * @brief get the value of a semaphore
+ * @brief Read the current internal semaphore count.
  * @details @b #include <semaphore.h> \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * The current implementation stores the raw `semcount` value in `sval`.
+ * Negative values therefore reflect waiting threads rather than being
+ * normalized to zero.
  * @since TizenRT v1.0
  */
 int sem_getvalue(FAR sem_t *sem, FAR int *sval);
 
+/**
+ * @ingroup SEMAPHORE_KERNEL
+ * @brief Timeout callback used by semaphore wait watchdogs.
+ * @details This helper is the watchdog entry point used by `sem_timedwait()`
+ * and `sem_tickwait()` to terminate a blocked wait with `ETIMEDOUT`.
+ */
 void sem_timeout(int argc, uint32_t pid);
 
 #ifdef CONFIG_FS_NAMED_SEMAPHORES
 /**
- * @cond
- * @internal
+ * @ingroup SEMAPHORE_KERNEL
+ * @brief Open or create a named semaphore.
+ * @details @b #include <semaphore.h> \n
+ * The current implementation resolves the name under
+ * `CONFIG_FS_NAMED_SEMPATH`, reuses the existing named semaphore when it is
+ * already present, and ignores the `mode_t` creation argument. Callers must
+ * provide a non-NULL name that fits in the fixed `MAX_SEMPATH` buffer once
+ * the configured path prefix is added.
  */
 FAR sem_t *sem_open(FAR const char *name, int oflag, ...);
 /**
- * @internal
+ * @ingroup SEMAPHORE_KERNEL
+ * @brief Close one open reference to a named semaphore.
+ * @details The named semaphore object is only destroyed after it has been
+ * unlinked and the final open reference is closed.
  */
 int sem_close(FAR sem_t *sem);
 /**
- * @internal
+ * @ingroup SEMAPHORE_KERNEL
+ * @brief Remove a named semaphore from the namespace.
+ * @details This call detaches the name immediately, but the underlying object
+ * remains alive until the last open reference is closed. The current
+ * implementation expects a non-NULL name and can fail before unlinking when
+ * the path does not resolve to a named semaphore inode.
  */
 int sem_unlink(FAR const char *name);
-/**
- * @endcond
- */
 #endif
 
 #undef EXTERN

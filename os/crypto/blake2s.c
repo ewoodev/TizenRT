@@ -435,6 +435,7 @@ int blake2s_init_key(FAR blake2s_state *S, size_t outlen, FAR const void *key, s
 {
 	blake2s_param P[1];
 	uint8_t block[BLAKE2S_BLOCKBYTES];
+	int ret;
 
 	if ((!outlen) || (outlen > BLAKE2S_OUTBYTES)) {
 		return -1;
@@ -457,7 +458,10 @@ int blake2s_init_key(FAR blake2s_state *S, size_t outlen, FAR const void *key, s
 	blake2_memset(P->salt, 0, sizeof(P->salt));
 	blake2_memset(P->personal, 0, sizeof(P->personal));
 
-	blake2s_init_param(S, P);
+	ret = blake2s_init_param(S, P);
+	if (ret < 0) {
+		return -1;
+	}
 
 	blake2_memset(block, 0, BLAKE2S_BLOCKBYTES);
 	blake2_memcpy(block, key, keylen);

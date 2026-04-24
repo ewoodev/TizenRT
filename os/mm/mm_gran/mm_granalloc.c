@@ -90,7 +90,7 @@
 
 static inline FAR void *gran_common_alloc(FAR struct gran_s *priv, size_t size)
 {
-	unsigned int ngranules;
+	unsigned int ngranules = 0;
 	size_t       tmpmask;
 	uintptr_t    alloc;
 	uint32_t     curr;
@@ -137,7 +137,7 @@ static inline FAR void *gran_common_alloc(FAR struct gran_s *priv, size_t size)
 
 			/* Get the next entry from the GAT to support a 64 bit shift */
 
-			if (granidx < priv->ngranules) {
+			if ((granidx + 32) < priv->ngranules) {
 				next = priv->gat[gatidx + 1];
 			}
 
@@ -264,19 +264,20 @@ static inline FAR void *gran_common_alloc(FAR struct gran_s *priv, size_t size)
  * Name: gran_alloc
  *
  * Description:
- *   Allocate memory from the granule heap.
+ *   Allocate one contiguous region from the granule heap.  The requested size
+ *   is rounded up to a whole number of granules and the returned pointer is
+ *   aligned to the allocator's granule size.
  *
  *   NOTE: The current implementation also restricts the maximum allocation
- *   size to 32 granules.  That restriction could be eliminated with some
- *   additional coding effort.
+ *   size to 32 granules.  Callers must stay within that limit.
  *
  * Input Parameters:
- *   handle - The handle previously returned by gran_initialize
+ *   If CONFIG_GRAN_SINGLE=y, no handle is required.
+ *   Otherwise, handle is the value previously returned by gran_initialize().
  *   size   - The size of the memory region to allocate.
  *
  * Returned Value:
- *   On success, either a non-NULL pointer to the allocated memory (if
- *   CONFIG_GRAN_SINGLE) or zero  (if !CONFIG_GRAN_SINGLE) is returned.
+ *   Returns a non-NULL pointer on success or NULL on failure.
  *
  ****************************************************************************/
 

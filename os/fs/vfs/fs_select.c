@@ -86,10 +86,14 @@
  ****************************************************************************/
 static int _set_timeout(FAR struct timeval *timeout)
 {
-	/* Any negative value of msec means no timeout */
+	/* Convert the timeval into milliseconds for poll().
+	 *
+	 * Microseconds are truncated. Negative or out-of-range timeval fields are
+	 * not validated here, so a negative result remains the "wait forever" case
+	 * that poll() understands.
+	 */
 	int msec = -1;
 	if (timeout) {
-		/* Calculate the timeout in milliseconds */
 		msec = timeout->tv_sec * 1000 + timeout->tv_usec / 1000;
 	}
 
@@ -108,11 +112,8 @@ static int _init_desc_list(int nfds,
 	for (fd = 0, ndx = 0; fd < nfds; fd++) {
 		int incr = 0;
 
-		/* The readfs set holds the set of FDs that the caller can be assured
-		 * of reading from without blocking.  Note that POLLHUP is included as
-		 * a read-able condition.  POLLHUP will be reported at the end-of-file
-		 * or when a connection is lost.  In either case, the read() can then
-		 * be performed without blocking.
+		/* Translate readfds into POLLIN. POLLHUP is treated as readable so
+		 * callers can drain the remaining data before EOF.
 		 */
 		if (readfds && FD_ISSET(fd, readfds)) {
 			pollset[ndx].fd = fd;
@@ -120,16 +121,14 @@ static int _init_desc_list(int nfds,
 			incr = 1;
 		}
 
-		/* The writefds set holds the set of FDs that the caller can be assured
-		 * of writing to without blocking.
-		 */
+		/* Translate writefds into POLLOUT. */
 		if (writefds && FD_ISSET(fd, writefds)) {
 			pollset[ndx].fd = fd;
 			pollset[ndx].events |= POLLOUT;
 			incr = 1;
 		}
 
-		/* The exceptfds set holds the set of FDs that are watched for exceptions */
+		/* Translate exceptfds into POLLERR. */
 		if (exceptfds && FD_ISSET(fd, exceptfds)) {
 			pollset[ndx].fd = fd;
 			pollset[ndx].events |= POLLERR;
@@ -164,10 +163,10 @@ static int _back_desc_list(int npfds,
 	int ndx;
 	int ret = 0;
 	for (ndx = 0; ndx < npfds; ndx++) {
-		/* Check for read conditions.  Note that POLLHUP is included as a
-		 * read condition.  POLLHUP will be reported when no more data will
-		 * be available (such as when a connection is lost).  In either
-		 * case, the read() can then be performed without blocking.
+		/* Copy poll() readiness bits back into the fd_sets.
+		 *
+		 * POLLHUP is treated as readable because a non-blocking read can still
+		 * drain remaining data before EOF.
 		 */
 		if (readfds) {
 			if (pollset[ndx].revents & (POLLIN | POLLHUP)) {
@@ -176,7 +175,7 @@ static int _back_desc_list(int npfds,
 			}
 		}
 
-		/* Check for write conditions */
+		/* Copy POLLOUT back into writefds. */
 		if (writefds) {
 			if (pollset[ndx].revents & POLLOUT) {
 				FD_SET(pollset[ndx].fd, writefds);
@@ -184,7 +183,7 @@ static int _back_desc_list(int npfds,
 			}
 		}
 
-		/* Check for exceptions */
+		/* Copy POLLERR back into exceptfds. */
 		if (exceptfds) {
 			if (pollset[ndx].revents & POLLERR) {
 				FD_SET(pollset[ndx].fd, exceptfds);
@@ -200,30 +199,21 @@ static int _back_desc_list(int npfds,
  * Name: select
  *
  * Description:
- *   select() allows a program to monitor multiple file descriptors, waiting
- *   until one or more of the file descriptors become "ready" for some class
- *   of I/O operation (e.g., input possible).  A file descriptor is
- *   considered  ready if it is possible to perform the corresponding I/O
- *   operation (e.g., read(2)) without blocking.
- *
- *   NOTE: poll() is the fundamental API for performing such monitoring
- *   operation under NuttX.  select() is provided for compatibility and
- *   is simply a layer of added logic on top of poll().  As such, select()
- *   is more wasteful of resources and poll() is the recommended API to be
- *   used.
+ *   select() is a compatibility wrapper over poll(). It scans the input
+ *   fd_sets, builds a temporary pollfd list, waits for readiness, and then
+ *   copies the resulting bits back into the caller's fd_sets.
  *
  * Input parameters:
- *   nfds - the maximum fd number (+1) of any descriptor in any of the
- *     three sets.
- *   readfds - the set of descriptions to monitor for read-ready events
- *   writefds - the set of descriptions to monitor for write-ready events
- *   exceptfds - the set of descriptions to monitor for error events
- *   timeout - Return at this time if none of these events of interest
- *     occur.
+ *   nfds - the highest descriptor number plus one.
+ *   readfds - descriptors to monitor for read readiness
+ *   writefds - descriptors to monitor for write readiness
+ *   exceptfds - descriptors to monitor for exception readiness
+ *   timeout - relative wait interval. A negative converted timeout means
+ *     wait forever.
  *
  *  Return:
  *   0: Timer expired
- *  >0: The number of bits set in the three sets of descriptors
+ *  >0: The number of readiness bits set across the output fd_sets
  *  -1: An error occurred (errno will be set appropriately)
  *
  ****************************************************************************/
@@ -239,19 +229,17 @@ int select(int nfds, FAR fd_set *readfds, FAR fd_set *writefds, FAR fd_set *exce
 	/* select() is a cancellation point */
 	(void)enter_cancellation_point();
 
-	/* How many pollfd structures do we need to allocate? */
-
-	/* Initialize the descriptor list for poll() */
+	/* Count the requested descriptors before allocating the pollfd list. */
 	for (fd = 0, npfds = 0; fd < nfds; fd++) {
-		/* Check if any monitor operation is requested on this fd */
+		/* Check whether this fd appears in any of the input sets. */
 		if ((readfds && FD_ISSET(fd, readfds)) || (writefds && FD_ISSET(fd, writefds)) || (exceptfds && FD_ISSET(fd, exceptfds))) {
-			/* Yes.. increment the count of pollfds structures needed */
+			/* Yes, this fd needs one pollfd entry. */
 			npfds++;
 		}
 	}
 
 	if (npfds > 0) {
-		/* Allocate the descriptor list for poll() */
+		/* Allocate the temporary pollfd list. */
 		pollset = (struct pollfd *)kmm_zalloc(npfds * sizeof(struct pollfd));
 		if (!pollset) {
 			set_errno(ENOMEM);
@@ -260,8 +248,7 @@ int select(int nfds, FAR fd_set *readfds, FAR fd_set *writefds, FAR fd_set *exce
 		}
 	}
 
-	/* Initialize the descriptor list for poll() */
-	/* And set up the return values */
+	/* Translate the input fd_sets into a pollfd list and count entries. */
 	int ndx = _init_desc_list(nfds, readfds, writefds, exceptfds, pollset);
 
 	DEBUGASSERT(ndx == npfds);
@@ -270,7 +257,7 @@ int select(int nfds, FAR fd_set *readfds, FAR fd_set *writefds, FAR fd_set *exce
 		return ERROR;
 	}
 
-	/* Then let poll do all of the real work. (timeout: unit of millisecond)*/
+	/* Then let poll do the real work. timeout is in milliseconds. */
 	ret = poll(pollset, npfds, _set_timeout(timeout));
 	if (ret < 0) {
 		/* poll() failed! Save the errno value */
@@ -279,7 +266,7 @@ int select(int nfds, FAR fd_set *readfds, FAR fd_set *writefds, FAR fd_set *exce
 
 	_reset_fds(readfds, writefds, exceptfds);
 
-	/* Convert the poll descriptor list back into selects 3 bitsets */
+	/* Convert the poll descriptor list back into the three fd_sets. */
 	if (ret > 0) {
 		ret = _back_desc_list(npfds, readfds, writefds, exceptfds, pollset);
 	}

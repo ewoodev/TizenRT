@@ -103,7 +103,10 @@
 /****************************************************************************
  * Name: rmdir
  *
- * Description:  Remove a file managed a mountpoint
+ * Description:
+ *   Remove a directory through a mountpoint rmdir() hook or, in the
+ *   pseudo-filesystem, by removing a directory node that has no operations
+ *   and no children.
  *
  ****************************************************************************/
 

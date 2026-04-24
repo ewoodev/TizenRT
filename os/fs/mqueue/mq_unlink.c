@@ -74,16 +74,16 @@
  * Name: mq_unlink
  *
  * Description:
- *   This function removes the message queue named by "mq_name." If one
- *   or more tasks have the message queue open when mq_unlink() is called,
- *   removal of the message queue is postponed until all references to the
- *   message queue have been closed.
+ *   Remove the named message queue from the CONFIG_FS_MQUEUE_MPATH
+ *   namespace.  If one or more tasks still hold descriptors when
+ *   mq_unlink() is called, namespace removal happens immediately but the
+ *   queue object remains alive until all references are closed.
  *
  * Parameters:
  *   mq_name - Name of the message queue
  *
  * Return Value:
- *   None
+ *   0 (OK) on success; otherwise, -1 (ERROR) with errno set.
  *
  * Assumptions:
  *
@@ -97,16 +97,25 @@ int mq_unlink(FAR const char *mq_name)
 	int errcode;
 	int ret;
 
+	if (!mq_name) {
+		errcode = EINVAL;
+		goto errout;
+	}
+
 	/* Get the full path to the message queue */
 
-	snprintf(fullpath, MAX_MQUEUE_PATH, CONFIG_FS_MQUEUE_MPATH "/%s", mq_name);
+	ret = snprintf(fullpath, MAX_MQUEUE_PATH, CONFIG_FS_MQUEUE_MPATH "/%s", mq_name);
+	if (ret < 0 || ret >= MAX_MQUEUE_PATH) {
+		errcode = ENAMETOOLONG;
+		goto errout;
+	}
 
 	/* Get the inode for this message queue. */
 
 	sched_lock();
 	inode = inode_find(fullpath, &relpath);
 	if (!inode) {
-		/* There is no inode that includes in this path */
+		/* There is no inode at this path. */
 
 		errcode = ENOENT;
 		goto errout;
@@ -136,20 +145,23 @@ int mq_unlink(FAR const char *mq_name)
 
 	ret = inode_remove(fullpath);
 
-	/* inode_remove() should always fail with -EBUSY because we hae a reference
-	 * on the inode.  -EBUSY means taht the inode was, indeed, unlinked but
-	 * thatis could not be freed because there are refrences.
+	/* inode_remove() usually fails with -EBUSY because we still hold a
+	 * reference on the inode.  -EBUSY means that the inode was unlinked but
+	 * could not be freed yet because references remain.
 	 */
 
 	DEBUGASSERT(ret >= 0 || ret == -EBUSY);
-	UNUSED(ret);
+	if (ret < 0 && ret != -EBUSY) {
+		errcode = -ret;
+		goto errout_with_semaphore;
+	}
 
 	/* Now we do not release the reference count in the normal way (by calling
-	 * inode release.  Rather, we call mq_inode_release().  mq_inode_release
+	 * inode_release()).  Rather, we call mq_inode_release().  mq_inode_release
 	 * will decrement the reference count on the inode.  But it will also free
 	 * the message queue if that reference count decrements to zero.  Since we
 	 * hold one reference, that can only occur if the message queue is not
-	 * in-use.
+	 * in use.
 	 */
 
 	inode_semgive();

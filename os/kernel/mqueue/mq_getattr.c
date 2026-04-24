@@ -16,7 +16,7 @@
  *
  ****************************************************************************/
 /************************************************************************
- * libc/mqueue/mq_getattr.c
+ * kernel/mqueue/mq_getattr.c
  *
  *   Copyright (C) 2007, 2009, 2011 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
@@ -56,6 +56,8 @@
 
 #include <tinyara/config.h>
 
+#include <assert.h>
+#include <errno.h>
 #include <mqueue.h>
 #include <tinyara/mqueue.h>
 
@@ -87,15 +89,16 @@
  * Function:  mq_getattr
  *
  * Description:
- *   This functions gets status information and attributes
- *   associated with the specified message queue.
+ *   Return a snapshot of the selected queue's configuration, current
+ *   occupancy, and the descriptor flag word stored in mqdes.
  *
  * Parameters:
  *   mqdes - Message queue descriptor
  *   mq_stat - Buffer in which to return attributes
  *
  * Return Value:
- *   0 (OK) if attributes provided, -1 (ERROR) otherwise.
+ *   0 (OK) if attributes were stored, or -1 (ERROR) with errno set if the
+ *   descriptor or output buffer is invalid.
  *
  * Assumptions:
  *
@@ -103,18 +106,28 @@
 
 int mq_getattr(mqd_t mqdes, struct mq_attr *mq_stat)
 {
-	int ret = ERROR;
-
-	if (mqdes && mq_stat) {
-		/* Return the attributes */
-
-		mq_stat->mq_maxmsg = mqdes->msgq->maxmsgs;
-		mq_stat->mq_msgsize = mqdes->msgq->maxmsgsize;
-		mq_stat->mq_flags = mqdes->oflags;
-		mq_stat->mq_curmsgs = mqdes->msgq->nmsgs;
-
-		ret = OK;
+	if (!mqdes) {
+		set_errno(EBADF);
+		return ERROR;
 	}
 
-	return ret;
+	if (!mq_stat) {
+		set_errno(EINVAL);
+		return ERROR;
+	}
+
+	DEBUGASSERT(mqdes->msgq != NULL);
+	if (mqdes->msgq == NULL) {
+		set_errno(EBADF);
+		return ERROR;
+	}
+
+	/* Return the queue snapshot plus the descriptor's current flags. */
+
+	mq_stat->mq_maxmsg = mqdes->msgq->maxmsgs;
+	mq_stat->mq_msgsize = mqdes->msgq->maxmsgsize;
+	mq_stat->mq_flags = mqdes->oflags;
+	mq_stat->mq_curmsgs = mqdes->msgq->nmsgs;
+
+	return OK;
 }

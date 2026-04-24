@@ -62,6 +62,7 @@
 #include <debug.h>
 
 #include "sched/sched.h"
+#include "group/group.h"
 #include "signal/signal.h"
 
 /************************************************************************
@@ -90,10 +91,8 @@
  *    error, -1 is returned, and errno is set appropriately:
  *
  *    EINVAL An invalid signal was specified.
- *    EPERM  The process does not have permission to send the
- *           signal to any of the target processes.
- *    ESRCH  The pid or process group does not exist.
- *    ENOSYS Do not support sending signals to process groups.
+ *    ESRCH  The target pid or its task-group owner does not exist.
+ *    ENOSYS Sending signals to process groups is not supported.
  *
  * Assumptions:
  *
@@ -112,6 +111,24 @@ int kill(pid_t pid, int signo)
 	if (pid <= 0) {
 		ret = -ENOSYS;
 		goto errout;
+	}
+
+	/* Signal number zero is a pure existence check. */
+
+	if (signo == 0) {
+		sched_lock();
+#ifdef HAVE_GROUP_MEMBERS
+		ret = (sched_gettcb(pid) != NULL || group_findbypid(pid) != NULL) ? OK : -ESRCH;
+#else
+		ret = (sched_gettcb(pid) != NULL) ? OK : -ESRCH;
+#endif
+		sched_unlock();
+
+		if (ret < 0) {
+			goto errout;
+		}
+
+		return OK;
 	}
 
 	/* Make sure that the signal is valid */

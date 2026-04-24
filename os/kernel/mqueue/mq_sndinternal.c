@@ -16,7 +16,7 @@
  *
  ****************************************************************************/
 /****************************************************************************
- *  kernel/mqueue/mq_send.c
+ *  kernel/mqueue/mq_sndinternal.c
  *
  *   Copyright (C) 2007, 2009, 2013-2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
@@ -103,7 +103,8 @@
  * Name: mq_verifysend
  *
  * Description:
- *   This is internal, common logic shared by both mq_send and mq_timesend.
+ *   This is internal, common logic shared by both mq_send() and
+ *   mq_timedsend().
  *   This function verifies the input parameters that are common to both
  *   functions.
  *
@@ -114,12 +115,12 @@
  *   prio - The priority of the message
  *
  * Return Value:
- *   One success, 0 (OK) is returned. On failure, -1 (ERROR) is returned and
+ *   On success, 0 (OK) is returned. On failure, -1 (ERROR) is returned and
  *   the errno is set appropriately:
  *
  *   EINVAL   Either msg or mqdes is NULL or the value of prio is invalid.
- *   EPERM    Message queue opened not opened for writing.
- *   EMSGSIZE 'msglen' was greater than the maxmsgsize attribute of the
+ *   EPERM    Message queue not opened for writing.
+ *   EMSGSIZE 'msglen' was greater than the max message size attribute of the
  *             message queue.
  *
  * Assumptions:
@@ -152,28 +153,20 @@ int mq_verifysend(mqd_t mqdes, FAR const char *msg, size_t msglen, int prio)
  * Name: mq_msgalloc
  *
  * Description:
- *   The mq_msgalloc function will get a free message for use by the
- *   operating system.  The message will be allocated from the g_msgfree
+ *   The mq_msgalloc function obtains one internal message object for the
+ *   send path.  Task context first consumes the general free list and then
+ *   falls back to dynamic allocation.  Interrupt context first consumes the
+ *   same general free list and then falls back to the interrupt-reserved
  *   list.
- *
- *   If the list is empty AND the message is NOT being allocated from the
- *   interrupt level, then the message will be allocated.  If a message
- *   cannot be obtained, the operating system is dead and therefore cannot
- *   continue.
- *
- *   If the list is empty AND the message IS being allocated from the
- *   interrupt level.  This function will attempt to get a message from
- *   the g_msgfreeirq list.  If this is unsuccessful, the calling interrupt
- *   handler will be notified.
  *
  * Inputs:
  *   None
  *
  * Return Value:
- *   A reference to the allocated msg structure.
- *   NULL on a failure to allocate,
- *    if from interrupt handler, set the errno as EBUSY,
- *    if from normal thread, set the errno as ENOMEM.
+ *   A reference to the allocated message structure.
+ *   NULL on a failure to allocate:
+ *     - EBUSY from interrupt context when no reserved message is available.
+ *     - ENOMEM from task context when dynamic allocation fails.
  *
  ****************************************************************************/
 
@@ -233,20 +226,22 @@ FAR struct mqueue_msg_s *mq_msgalloc(void)
  * Name: mq_waitsend
  *
  * Description:
- *   This is internal, common logic shared by both mq_send and mq_timesend.
+ *   This is internal, common logic shared by both mq_send() and
+ *   mq_timedsend().
  *   This function waits until the message queue is not full.
  *
  * Parameters:
  *   mqdes - Message queue descriptor
  *
  * Return Value:
- *   On success, mq_send() returns 0 (OK); on error, -1 (ERROR) is
+ *   On success, 0 (OK) is returned; on error, -1 (ERROR) is
  *   returned, with errno set to indicate the error:
  *
- *   EAGAIN   The queue was empty, and the O_NONBLOCK flag was set for the
- *            message queue description referred to by mqdes.
+ *   EAGAIN   The queue was full, and the O_NONBLOCK flag was set for the
+ *            message queue descriptor referred to by mqdes.
  *   EINTR    The call was interrupted by a signal handler.
- *   ETIMEOUT A timeout expired before the message queue became non-full
+ *   ECANCELED A pending task cancellation was observed before the wait.
+ *   ETIMEDOUT A timeout expired before the message queue became non-full
  *            (mq_timedsend only).
  *
  * Assumptions/restrictions:
@@ -292,12 +287,12 @@ int mq_waitsend(mqd_t mqdes)
 		}
 
 		/* Yes... We will not return control until the message queue is
-		 * available or we receive a signal or at timout occurs.
+		 * available or we receive a signal or a timeout occurs.
 		 */
 
 		else {
-			/* Loop until there are fewer than max allowable messages in the
-			 * receiving message queue
+			/* Loop until there are fewer than the maximum allowable
+			 * messages in the queue.
 			 */
 
 			while (msgq->nmsgs >= msgq->maxmsgs) {
@@ -313,9 +308,9 @@ int mq_waitsend(mqd_t mqdes)
 				up_block_task(rtcb, TSTATE_WAIT_MQNOTFULL);
 
 				/* When we resume at this point, either (1) the message queue
-				 * is no longer empty, or (2) the wait has been interrupted by
-				 * a signal.  We can detect the latter case be examining the
-				 * errno value (should be EINTR or ETIMEOUT).
+				 * is no longer full, or (2) the wait has been interrupted by
+				 * a signal.  We can detect the latter case by examining the
+				 * errno value (should be EINTR or ETIMEDOUT).
 				 */
 
 				if (get_errno() != OK) {
@@ -333,11 +328,11 @@ int mq_waitsend(mqd_t mqdes)
  * Name: mq_dosend
  *
  * Description:
- *   This is internal, common logic shared by both mq_send and mq_timesend.
- *   This function adds the specificied message (msg) to the message queue
- *   (mqdes).  Then it notifies any tasks that were waiting for message
- *   queue notifications setup by mq_notify.  And, finally, it awakens any
- *   tasks that were waiting for the message not empty event.
+ *   This is internal, common logic shared by both mq_send() and
+ *   mq_timedsend().  It copies the caller's payload into the supplied
+ *   internal message object, inserts it into the queue, consumes any armed
+ *   one-shot mq_notify() registration, and wakes one task waiting for the
+ *   queue to become non-empty.
  *
  * Parameters:
  *   mqdes - Message queue descriptor
@@ -379,7 +374,8 @@ int mq_dosend(mqd_t mqdes, FAR struct mqueue_msg_s *mqmsg, FAR const char *msg, 
 	saved_state = enter_critical_section();
 
 	/* Search the message list to find the location to insert the new
-	 * message. Each is list is maintained in ascending priority order.
+	 * message. The list is maintained in descending priority order, with
+	 * FIFO ordering among messages that have the same priority.
 	 */
 
 	for (prev = NULL, next = (FAR struct mqueue_msg_s *)msgq->msglist.head; next && prio <= next->priority; prev = next, next = next->next) ;

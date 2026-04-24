@@ -101,7 +101,9 @@
  * Description:
  *   This is internal, common logic shared by both mq_receive and
  *   mq_timedreceive.  This function verifies the input parameters that are
- *   common to both functions.
+ *   common to both functions: non-NULL descriptor and message buffer,
+ *   read permission on the descriptor, and a user buffer large enough for
+ *   the queue's maxmsgsize.
  *
  * Parameters:
  *   mqdes - Message Queue Descriptor
@@ -109,13 +111,13 @@
  *   msglen - Size of the buffer in bytes
  *
  * Return Value:
- *   One success, 0 (OK) is returned. On failure, -1 (ERROR) is returned and
+ *   On success, 0 (OK) is returned. On failure, -1 (ERROR) is returned and
  *   the errno is set appropriately:
  *
- *   EPERM    Message queue opened not opened for reading.
+ *   EPERM    Message queue was not opened for reading.
  *   EMSGSIZE 'msglen' was less than the maxmsgsize attribute of the message
  *            queue.
- *   EINVAL   Invalid 'msg' or 'mqdes'
+ *   EINVAL   Invalid msg pointer or descriptor pointer.
  *
  * Assumptions:
  *
@@ -150,15 +152,18 @@ int mq_verifyreceive(mqd_t mqdes, FAR char *msg, size_t msglen)
  *   This is internal, common logic shared by both mq_receive and
  *   mq_timedreceive.  This function waits for a message to be received on
  *   the specified message queue, removes the message from the queue, and
- *   returns it.
+ *   returns it.  The helper blocks only when O_NONBLOCK is clear in the
+ *   descriptor and leaves errno set by the wakeup path when the wait ends
+ *   due to interruption, timeout, or deferred cancellation.
  *
  * Parameters:
  *   mqdes - Message queue descriptor
  *
  * Return Value:
  *   On success, a reference to the received message.  If the wait was
- *   interrupted by a signal or a timeout, then the errno will be set
- *   appropriately and NULL will be returned.
+ *   interrupted by a signal, timeout, or deferred cancellation wakeup,
+ *   then errno will already be set appropriately and NULL will be
+ *   returned.
  *
  * Assumptions:
  * - The caller has provided all validity checking of the input parameters
@@ -246,9 +251,9 @@ FAR struct mqueue_msg_s *mq_waitreceive(mqd_t mqdes)
  * Description:
  *   This is internal, common logic shared by both mq_receive and
  *   mq_timedreceive.  This function accepts the message obtained by
- *   mq_waitmsg, provides the message content to the user, notifies any
- *   threads that were waiting for the message queue to become non-full,
- *   and disposes of the message structure
+ *   mq_waitreceive(), copies the payload into the user buffer, optionally
+ *   reports the message priority, wakes one waiter for the queue-not-full
+ *   condition, and disposes of the message structure.
  *
  * Parameters:
  *   mqdes - Message queue descriptor
@@ -263,7 +268,7 @@ FAR struct mqueue_msg_s *mq_waitreceive(mqd_t mqdes)
  * - The caller has provided all validity checking of the input parameters
  *   using mq_verifyreceive.
  * - The user buffer, ubuffer, is known to be large enough to accept the
- *   largest message that an be sent on this message queue
+ *   largest message that can be sent on this message queue.
  * - Pre-emption should be disabled throughout this call.
  *
  ****************************************************************************/

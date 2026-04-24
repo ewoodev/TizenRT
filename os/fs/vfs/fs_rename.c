@@ -103,7 +103,10 @@
 /****************************************************************************
  * Name: rename
  *
- * Description:  Remove a file managed a mountpoint
+ * Description:
+ *   Rename a path within one mountpoint, or move a pseudo-filesystem inode
+ *   by reserving a replacement destination inode and removing the old source
+ *   entry. The current implementation requires absolute, non-empty paths.
  *
  ****************************************************************************/
 
@@ -118,9 +121,7 @@ int rename(FAR const char *oldpath, FAR const char *newpath)
 	int errcode;
 	int ret;
 
-	/* Ignore paths that are interpreted as the root directory which has no name
-	 * and cannot be moved
-	 */
+	/* Reject NULL, empty, and relative paths up front. */
 
 	if (!oldpath || *oldpath == '\0' || oldpath[0] != '/' || !newpath || *newpath == '\0' || newpath[0] != '/') {
 		errcode = EINVAL;

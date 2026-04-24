@@ -98,26 +98,30 @@ extern "C" {
  * Name: ioctl
  *
  * Description:
- *   Perform device specific operations.
+ *   Perform descriptor-specific control operations.
  *
- *   ioctl() is a non-standard UNIX-like API
+ *   The implementation routes regular file descriptors through the VFS ioctl
+ *   path and, when networking is enabled, forwards socket descriptors to
+ *   `net_ioctl()`. In builds with `CONFIG_LIBC_IOCTL_VARIADIC`, the public
+ *   variadic API is backed by an internal `fs_ioctl()` implementation that
+ *   still receives an `unsigned long` argument value.
  *
  * Parameters:
- *   fd       File/socket descriptor of device
+ *   fd       File or socket descriptor of the target object
  *   req      The ioctl command
- *   arg      The argument of the ioctl cmd, OR
- *   ...      A third argument of type unsigned long is still expected.
+ *   arg      The ioctl argument, OR
+ *   ...      A third argument of type unsigned long when the variadic form is enabled.
  *
  * Return:
- *   >=0 on success (positive non-zero values are cmd-specific)
- *   -1 on failure with errno set properly:
+ *   A non-negative command-specific result on success.
+ *   `-1` (`ERROR`) on failure with errno set appropriately:
  *
  *   EBADF
  *     'fd' is not a valid descriptor.
  *   EFAULT
  *     'arg' references an inaccessible memory area.
  *   EINVAL
- *     'cmd' or 'arg' is not valid.
+ *     'req' or 'arg' is not valid.
  *   ENOTTY
  *     'fd' is not associated with a character special device.
  *   ENOTTY
@@ -128,10 +132,11 @@ extern "C" {
 
 /**
  * @ingroup IOCTL_KERNEL
- * @brief control a STREAMS device
+ * @brief Perform a control operation on a file or socket descriptor.
  * @details @b #include <sys/ioctl.h> \n
- * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * This TinyAra/TizenRT implementation dispatches file descriptors through the
+ * VFS layer and socket descriptors through the network ioctl layer when
+ * sockets are enabled. It is a non-standard UNIX-like API.
  * @since TizenRT v1.0
  */
 #ifdef CONFIG_LIBC_IOCTL_VARIADIC

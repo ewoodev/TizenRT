@@ -96,14 +96,12 @@
  * Name:  sem_close
  *
  * Description:
- *   This function is called to indicate that the calling task is finished
- *   with the specified named semaphore, 'sem'.  The sem_close() deallocates
- *   any system resources allocated by the system for this named semaphore.
+ *   This function drops one open reference to a named semaphore.
  *
  *   If the semaphore has not been removed with a call to sem_unlink(), then
- *   sem_close() has no effect on the named semaphore.  However, when the
- *   named semaphore has been fully unlinked, the semaphore will vanish when
- *   the last task closes it.
+ *   sem_close() only decrements the inode reference count.  Once the
+ *   semaphore has been unlinked, the final close destroys the contained
+ *   semaphore and frees the inode/container storage.
  *
  * Parameters:
  *  sem - semaphore descriptor

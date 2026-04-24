@@ -112,10 +112,8 @@
  *    On  success (at least one signal was sent), zero is returned.  On
  *    error, -1 is returned, and errno is set appropriately:
  *
- *    EGAIN The limit of signals which may be queued has been reached.
  *    EINVAL sig was invalid.
- *    EPERM  The  process  does  not  have  permission to send the
- *      signal to the receiving process.
+ *    ENOMEM A pending signal action could not be allocated during dispatch.
  *    ESRCH  No process has a PID matching pid.
  *
  * Assumptions:
@@ -142,7 +140,7 @@ int sigqueue(int pid, int signo, void *sival_ptr)
 
 	/* Sanity checks */
 
-	if (!GOOD_SIGNO(signo)) {
+	if (!GOOD_SIGNO(signo) || signo == 0) {
 		ret = -EINVAL;
 		goto errout;
 	}

@@ -150,27 +150,21 @@ static void mq_rcvtimeout(int argc, uint32_t pid)
  * Name: mq_timedreceive
  *
  * Description:
- *   This function receives the oldest of the highest priority messages from
- *   the message queue specified by "mqdes."  If the size of the buffer in
- *   bytes (msglen) is less than the "mq_msgsize" attribute of the message
- *   queue, mq_timedreceive will return an error.  Otherwise, the selected
- *   message is removed from the queue and copied to "msg."
+ *   Receive the oldest queued message from the highest priority band of
+ *   the message queue identified by mqdes, but limit the blocking wait
+ *   with an absolute CLOCK_REALTIME timeout when O_NONBLOCK is clear.
  *
- *   If the message queue is empty and O_NONBLOCK was not set,
- *   mq_timedreceive() will block until a message is added to the message
- *   queue (or until a timeout occurs).  If more than one task is waiting
- *   to receive a message, only the task with the highest priority that has
- *   waited the longest will be unblocked.
+ *   The call validates mqdes, msg, msglen, and abstime, reserves one
+ *   watchdog up front, converts abstime to ticks only when the queue is
+ *   currently empty, then waits until a message arrives, the wait is
+ *   interrupted, or the timeout expires.
  *
- *   mq_timedreceive() behaves just like mq_receive(), except that if the
- *   queue is empty and the O_NONBLOCK flag is not enabled for the message
- *   queue description, then abstime points to a structure which specifies a
- *   ceiling on the time for which the call will block.  This ceiling is an
- *   absolute timeout in seconds and nanoseconds since the Epoch (midnight
- *   on the morning of 1 January 1970).
+ *   When a message is obtained, mq_timedreceive() removes it from the
+ *   queue, copies the payload into msg, optionally returns the message
+ *   priority through prio, and then wakes one sender that was waiting for
+ *   the queue to become non-full.
  *
- *   If no message is available, and the timeout has already expired by the
- *   time of the call, mq_timedreceive() returns immediately.
+ *   mq_timedreceive() is a cancellation point.
  *
  * Parameters:
  *   mqdes - Message Queue Descriptor
@@ -180,7 +174,7 @@ static void mq_rcvtimeout(int argc, uint32_t pid)
  *   abstime - the absolute time to wait until a timeout is declared.
  *
  * Return Value:
- *   One success, the length of the selected message in bytes is returned.
+ *   On success, the length of the selected message in bytes is returned.
  *   On failure, -1 (ERROR) is returned and the errno is set appropriately:
  *
  *   EAGAIN    The queue was empty, and the O_NONBLOCK flag was set
@@ -189,9 +183,11 @@ static void mq_rcvtimeout(int argc, uint32_t pid)
  *   EMSGSIZE  'msglen' was less than the maxmsgsize attribute of the
  *             message queue.
  *   EINTR     The call was interrupted by a signal handler.
- *   EINVAL    Invalid 'msg' or 'mqdes' or 'abstime'
- *   ETIMEDOUT The call timed out before a message could be transferred.
- *   ENOMEM    The system lacks sufficient memory resources for watchdog.
+ *   EINVAL    Invalid msg pointer, descriptor pointer, or abstime.
+ *   ETIMEDOUT The absolute timeout expired before a message could be
+ *             transferred.
+ *   ENOMEM    The system could not reserve the watchdog used for the timed
+ *             wait path.
  *
  * Assumptions:
  *
@@ -206,7 +202,7 @@ ssize_t mq_timedreceive(mqd_t mqdes, FAR char *msg, size_t msglen, FAR int *prio
 
 	DEBUGASSERT(up_interrupt_context() == false && rtcb->waitdog == NULL);
 
-	/* mq_timedreceive() is not a cancellation point */
+	/* mq_timedreceive() is a cancellation point */
 	(void)enter_cancellation_point();
 
 	/* Verify the input parameters and, in case of an error, set
@@ -225,7 +221,7 @@ ssize_t mq_timedreceive(mqd_t mqdes, FAR char *msg, size_t msglen, FAR int *prio
 	}
 
 	/* Create a watchdog.  We will not actually need this watchdog
-	 * unless the queue is not empty, but we will reserve it up front
+	 * unless the queue is empty, but we will reserve it up front
 	 * before we enter the following critical section.
 	 */
 

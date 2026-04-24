@@ -97,7 +97,7 @@
  *
  * Description:
  *   This function removes the semaphore named by the input parameter 'name.'
- *   If the semaphore named by 'name' is currently referenced by other task,
+ *   If the semaphore named by 'name' is currently referenced by other tasks,
  *   the sem_unlink() will have no effect on the state of the semaphore.  If
  *   one or more processes have the semaphore open when sem_unlink() is
  *   called, destruction of the semaphore will be postponed until all

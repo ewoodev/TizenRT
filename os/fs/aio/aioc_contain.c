@@ -16,7 +16,7 @@
  *
  ****************************************************************************/
 /****************************************************************************
- * libc/aio/aioc_contain.c
+ * fs/aio/aioc_contain.c
  *
  *   Copyright (C) 2014 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
@@ -99,10 +99,9 @@
  *   aiocbp - The AIO control block pointer
  *
  * Returned Value:
- *   A reference to the new AIO control block container.   This function
- *   will not fail but will wait if necessary for the resources to perform
- *   this operation.  NULL will be returned on certain errors with the
- *   errno value already set appropriately.
+ *   A reference to the new AIO control block container.  This function may
+ *   wait for a free pre-allocated container.  NULL will be returned on
+ *   descriptor lookup failures with errno already set appropriately.
  *
  ****************************************************************************/
 

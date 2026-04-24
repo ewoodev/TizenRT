@@ -117,10 +117,10 @@ typedef struct fd_set {
 /****************************************************************************
  * Integration with LWIP
  *
- * select() can be defined in fs/vfs/fs_select.c or
- * or in net/socket/bsd_socket_api.c when CONFIG_DISABLE_POLL=y
- *
- * in the second case LWIP implementation will be used with own declatations
+ * When CONFIG_DISABLE_POLL is not set, select() is provided by
+ * fs/vfs/fs_select.c. When CONFIG_DISABLE_POLL is set, the socket-layer
+ * implementation comes from lwIP headers and sources instead of the old
+ * net/socket/bsd_socket_api.c path.
  *
  ****************************************************************************/
 
@@ -157,9 +157,12 @@ extern "C" {
 
 /**
  * @ingroup SELECT_KERNEL
- * @brief synchronous I/O multiplexing
+ * @brief monitor file and socket descriptors for readiness
  * @details @b #include <sys/select.h> \n
  * SYSTEM CALL API \n
+ * In the default build this declaration is implemented by the VFS wrapper in
+ * fs/vfs/fs_select.c, which converts the descriptor sets to poll() state and
+ * then maps the readiness bits back. \n
  * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
  * @since TizenRT v1.0
  */

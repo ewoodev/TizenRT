@@ -85,18 +85,17 @@ static inline int statpseudofs(FAR struct inode *inode, FAR struct statfs *buf)
  ****************************************************************************/
 
 /****************************************************************************
- * Name: stat
+ * Name: statfs
  *
- * Return: Zero on success; -1 on failure with errno set:
+ * Description:
+ *   Return filesystem-capacity metadata for a mountpoint-owned path or a
+ *   pseudo-filesystem inode. The current pseudo-filesystem path synthesizes
+ *   a PROC_SUPER_MAGIC result through statpseudofs().
  *
- *   EACCES  Search permission is denied for one of the directories in the
- *           path prefix of path.
- *   EFAULT  Bad address.
- *   ENOENT  A component of the path path does not exist, or the path is an
- *           empty string.
- *   ENOMEM  Out of memory
- *   ENOTDIR A component of the path is not a directory.
- *   ENOSYS  The file system does not support this call.
+ * Return:
+ *   OK on success, or ERROR on failure with errno set. Like stat(), the
+ *   current wrapper does not force an error when a mountpoint is found but
+ *   does not supply a statfs() hook.
  *
  ****************************************************************************/
 

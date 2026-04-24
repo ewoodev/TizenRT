@@ -79,7 +79,8 @@
  * Name: dup
  *
  * Description:
- *   Clone a file or socket descriptor to an arbitray descriptor number
+ *   Duplicate a file descriptor through fs_dupfd(), or redirect configured
+ *   socket descriptors to net_dupsd() when networking support is built.
  *
  ****************************************************************************/
 

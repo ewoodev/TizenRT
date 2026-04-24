@@ -396,7 +396,9 @@ void up_rngaddint(enum rnd_source_t type, int val)
  * Name: up_rngaddentropy
  *
  * Description:
- *   Add buffer of integers to entropy pool.
+ *   Add a caller buffer of integers to the entropy pool. The current
+ *   implementation also mixes in local timing-derived state and limits how
+ *   quickly IRQ and timer sources increase the reseed counter.
  *
  * Parameters:
  *   kindof  - Enumeration constant telling where val came from
@@ -467,7 +469,9 @@ void up_rngaddentropy(enum rnd_source_t type, FAR const uint32_t *buf, size_t n)
  * Name: up_rngreseed
  *
  * Description:
- *   Force reseeding random number generator from entropy pool
+ *   Attempt to reseed the random number generator from the entropy pool
+ *   after taking the RNG lock. The current implementation reseeds only
+ *   when enough new entropy has accumulated.
  *
  ****************************************************************************/
 
@@ -488,7 +492,8 @@ void up_rngreseed(void)
  * Name: up_randompool_initialize
  *
  * Description:
- *   Initialize entropy pool and random number generator
+ *   Initialize the random-generator state and synchronization used with
+ *   the global entropy pool.
  *
  ****************************************************************************/
 

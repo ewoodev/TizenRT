@@ -86,9 +86,16 @@ extern "C" {
 #define EXTERN extern
 #endif
 /**
- * @brief get the date and time
+ * @brief Get the current realtime clock value.
+ *
  * @details @b #include <sys/time.h> \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * This implementation reads `CLOCK_REALTIME` via `clock_gettime()` and
+ * converts the resulting `timespec` into `timeval` form. The `tz` argument is
+ * accepted for API compatibility but is not used.
+ *
+ * In `CONFIG_DEBUG` builds, a `NULL` `tv` pointer is rejected with `EINVAL`.
+ * In non-debug builds, callers must still provide a valid `tv` pointer.
+ *
  * @since TizenRT v1.0
  */
 EXTERN int gettimeofday(struct timeval *tv, FAR struct timezone *tz);

@@ -94,22 +94,29 @@
  * Name: mq_send
  *
  * Description:
- *   This function adds the specified message (msg) to the message queue
- *   (mqdes).  The "msglen" parameter specifies the length of the message
- *   in bytes pointed to by "msg."  This length must not exceed the maximum
- *   message length from the mq_getattr().
+ *   This function adds the specified message to the message queue
+ *   referenced by mqdes.  The "msglen" parameter specifies the length of
+ *   the message in bytes pointed to by "msg."  This length must not exceed
+ *   the queue's mq_msgsize attribute.
  *
- *   If the message queue is not full, mq_send() place the message in the
- *   message queue at the position indicated by the "prio" argument.
- *   Messages with higher priority will be inserted before lower priority
- *   messages.  The value of "prio" must not exceed MQ_PRIO_MAX.
+ *   If the message queue is not full, mq_send() copies the payload into an
+ *   internal message object and inserts it in descending priority order.
+ *   Messages with the same priority stay in FIFO order.  The value of
+ *   "prio" must not exceed MQ_PRIO_MAX.
  *
  *   If the specified message queue is full and O_NONBLOCK is not set in the
- *   message queue, then mq_send() will block until space becomes available
- *   to the queue the message.
+ *   descriptor, mq_send() will block until space becomes available.
  *
  *   If the message queue is full and O_NONBLOCK is set, the message is not
- *   queued and ERROR is returned.
+ *   queued and ERROR is returned with errno set to EAGAIN.
+ *
+ *   Interrupt-context callers do not use the blocking wait path; they
+ *   allocate from the shared free list first and then from the
+ *   interrupt-reserved pool.
+ *
+ *   On success, the send path also consumes any armed one-shot
+ *   notification and wakes one task waiting for the queue to become
+ *   non-empty.
  *
  * Parameters:
  *   mqdes - Message queue descriptor
@@ -121,15 +128,16 @@
  *   On success, mq_send() returns 0 (OK); on error, -1 (ERROR)
  *   is returned, with errno set to indicate the error:
  *
- *   EAGAIN   The queue was empty, and the O_NONBLOCK flag was set for the
- *            message queue description referred to by mqdes.
+ *   EAGAIN   The queue was full, and the O_NONBLOCK flag was set for the
+ *            message queue descriptor referred to by mqdes.
  *   EINVAL   Either msg or mqdes is NULL or the value of prio is invalid.
- *   EPERM    Message queue opened not opened for writing.
- *   EMSGSIZE 'msglen' was greater than the maxmsgsize attribute of the
+ *   EPERM    Message queue not opened for writing.
+ *   EMSGSIZE 'msglen' was greater than the max message size attribute of
  *            message queue.
  *   EINTR    The call was interrupted by a signal handler.
+ *   ECANCELED A pending task cancellation was observed before the wait.
  *   EBUSY    Fail to get the msg from interrupt handler.
- *   ENOMEM   Fail to allocate the msg from normal thread.
+ *   ENOMEM   Fail to allocate the internal message.
  *
  * Assumptions/restrictions:
  *

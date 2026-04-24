@@ -90,7 +90,7 @@
  * Name: mq_desfree
  *
  * Description:
- *   Deallocate a message queue descriptor but returning it to the free list
+ *   Deallocate a message queue descriptor by returning it to the free list.
  *
  * Inputs:
  *   mqdes - message queue descriptor to free
@@ -107,8 +107,11 @@
  * Name: mq_desclose_group
  *
  * Description:
- *   This function performs the portion of the mq_close operation related
- *   to freeing resource used by the message queue descriptor itself.
+ *   This function performs the descriptor-local portion of mq_close().
+ *   It removes mqdes from the supplied task group's descriptor list,
+ *   clears queue-global notification only when that registration is owned
+ *   by mqdes, and then returns the descriptor storage to the global free
+ *   list.
  *
  * Parameters:
  *   mqdes - Message queue descriptor.
@@ -118,6 +121,7 @@
  *   None.
  *
  * Assumptions:
+ * - The caller has already validated mqdes and group.
  * - Called only from mq_close() with the scheduler locked.
  *
  ****************************************************************************/
@@ -128,8 +132,7 @@ void mq_desclose_group(mqd_t mqdes, FAR struct task_group_s *group)
 
 	DEBUGASSERT(mqdes != NULL && group != NULL);
 
-	/* Remove the message descriptor from the current task's list of message
-	 * descriptors.
+	/* Remove the message descriptor from the task group's descriptor list.
 	 */
 
 	sq_rem((FAR sq_entry_t *)mqdes, &group->tg_msgdesq);
@@ -138,8 +141,8 @@ void mq_desclose_group(mqd_t mqdes, FAR struct task_group_s *group)
 
 	msgq = mqdes->msgq;
 
-	/* Check if the calling task has a notification attached to the message
-	 * queue via this mqdes.
+	/* Check if the queue-global notification is currently owned by this
+	 * descriptor.
 	 */
 
 #ifndef CONFIG_DISABLE_SIGNALS
@@ -151,7 +154,7 @@ void mq_desclose_group(mqd_t mqdes, FAR struct task_group_s *group)
 	}
 #endif
 
-	/* Deallocate the message descriptor */
+	/* Return the descriptor storage to the free pool. */
 
 	mq_desfree(mqdes);
 }

@@ -96,27 +96,22 @@
  * Name: aio_cancel
  *
  * Description:
- *   The aio_cancel() function attempts to cancel one or more asynchronous
- *   I/O requests currently outstanding against file descriptor 'fildes'.
- *   The aiocbp argument points to the asynchronous I/O control block for
- *   a particular request to be cancelled. If aiocbp is NULL, then all
- *   outstanding cancelable asynchronous I/O requests against fildes will
- *   be cancelled.
+ *   Attempt to cancel queued low-priority work items created by the
+ *   `os/fs/aio` submit APIs.  Only requests that are still queued on LPWORK
+ *   can be cancelled here; once a worker has dequeued the request, normal
+ *   completion must run to finish it.
  *
- *   Normal asynchronous notification will occur for asynchronous I/O
- *   operations that are successfully cancelled. If there are requests that
- *   cannot be cancelled, then the normal asynchronous completion process
- *   will take place for those requests when they are completed.
+ *   When aiocbp is non-NULL, the implementation searches by control-block
+ *   pointer and ignores fildes.  When aiocbp is NULL, the implementation
+ *   cancels every queued request whose `aio_fildes` matches fildes.
  *
- *   For requested operations that are successfully cancelled, the associated
- *   error status will be set to ECANCELED and the return status will be -1.
- *   For requested operations that are not successfully cancelled, the aiocbp
- *   will not be modified by aio_cancel().
+ *   For successfully cancelled requests, `aio_result` is updated to
+ *   `-ECANCELED`. Requests that cannot be cancelled are left on the pending
+ *   list for their worker to complete normally.
  *
  * Input Parameters:
- *   fildes - Not used in this implementation
- *   aiocbp - Points to the asynchronous I/O control block for a particular
- *            request to be cancelled.
+ *   fildes - Descriptor filter used only when aiocbp is NULL.
+ *   aiocbp - Specific asynchronous I/O control block to cancel, or NULL.
  *
  * Returned Value:
  *    The aio_cancel() function will return the value AIO_CANCELED if the
@@ -174,13 +169,10 @@ int aio_cancel(int fildes, FAR struct aiocb *aiocbp)
 				if (status >= 0) {
 					aiocbp->aio_result = -ECANCELED;
 					ret = AIO_CANCELED;
+					(void)aioc_decant(aioc);
 				} else {
 					ret = AIO_NOTCANCELED;
 				}
-
-				/* Remove the container from the list of pending transfers */
-
-				(void)aioc_decant(aioc);
 			}
 		}
 	} else {
@@ -210,10 +202,9 @@ int aio_cancel(int fildes, FAR struct aiocb *aiocbp)
 				/* Remove the container from the list of pending transfers */
 
 				next = (FAR struct aio_container_s *)aioc->aioc_link.flink;
-				aiocbp = aioc_decant(aioc);
-				DEBUGASSERT(aiocbp);
-
 				if (status >= 0) {
+					aiocbp = aioc_decant(aioc);
+					DEBUGASSERT(aiocbp);
 					aiocbp->aio_result = -ECANCELED;
 					if (ret != AIO_NOTCANCELED) {
 						ret = AIO_CANCELED;

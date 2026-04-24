@@ -74,7 +74,8 @@ struct compress_header {
  * Name: compress_register
  *
  * Description:
- *   Register compress driver path, MMINFO_DRVPATH
+ *   Register the `/dev/compress` driver that exposes the compression and
+ *   file-decompression ioctl interface.
  *
  ****************************************************************************/
 void compress_register(void);
@@ -83,11 +84,12 @@ void compress_register(void);
  * Name: compress_block
  *
  * Description:
- *   compresses block in 'read_buffer' of readsize into 'out_buffer' of writesize
+ *   Compress one input block with the backend selected by
+ *   `CONFIG_COMPRESSION_TYPE`. `writesize` is updated with the compressed
+ *   byte count reported by that backend.
  *
  * Returned Value:
- *   Non-negative value on Success.
- *   Negative value on Failure.
+ *   Zero on success. Non-zero values are backend-specific failure codes.
  ****************************************************************************/
 int compress_block(unsigned char *out_buffer, long unsigned int *writesize, unsigned char *read_buffer, long unsigned int size);
 
@@ -95,22 +97,25 @@ int compress_block(unsigned char *out_buffer, long unsigned int *writesize, unsi
  * Name: decompress_block
  *
  * Description:
- *   Decompress block in 'read_buffer' of readsize into 'out_buffer' of writesize
+ *   Decompress one compressed block into `out_buffer`. `size` contains the
+ *   compressed input length on entry and may be adjusted while decoding.
  *
  * Returned Value:
- *   Non-negative value on Success.
- *   Negative value on Failure.
+ *   `OK` on success, `-ENOMEM` when the caller-provided output buffer is too
+ *   small, or `-EIO` when the backend reports a decode failure.
  ****************************************************************************/
 int decompress_block(unsigned char *out_buffer, long unsigned int *writesize, unsigned char *read_buffer, long unsigned int *size);
 
 /****************************************************************************
- * Name: allocate compress buffer
+ * Name: allocate_compress_buffer
  *
  * Description:
- *   allocates given number of memory to a buffer 
+ *   Allocate a kernel heap buffer large enough for the requested payload,
+ *   the caller-provided offset, and any algorithm-specific properties stored
+ *   ahead of the compressed payload.
  *
  * Returned Value:
- *   unsigned char * buffer 
+ *   A writable kernel buffer on success, or `NULL` on allocation failure.
  ****************************************************************************/
 unsigned char *allocate_compress_buffer(int offset, unsigned int size);
 

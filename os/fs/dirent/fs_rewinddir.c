@@ -106,15 +106,15 @@ static inline void rewindpseudodir(struct fs_dirent_s *idir)
  * Name: rewinddir
  *
  * Description:
- *   The  rewinddir() function resets the position of the
- *   directory stream dir to the beginning of the directory.
+ *   Reset the position of the directory stream to the beginning of the
+ *   directory when the underlying implementation supports rewinding.
  *
  * Inputs:
  *   dirp -- An instance of type DIR created by a previous
  *     call to opendir();
  *
  * Return:
- *   None
+ *   None. Invalid streams or unsupported mountpoints are ignored.
  *
  ****************************************************************************/
 

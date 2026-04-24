@@ -236,16 +236,10 @@ extern "C" {
  * Name: net_setup
  *
  * Description:
- *   This is called from the OS initialization logic at power-up reset in
- *   order to configure networking data structures.  This is called prior
- *   to platform-specific driver initialization so that the networking
- *   subsystem is prepared to deal with network driver initialization
- *   actions.
- *
- *   Actions performed in this initialization phase assume that base OS
- *   facilities such as semaphores are available but this logic cannot
- *   depend upon OS resources such as interrupts or timers which are not
- *   yet available.
+ *   Perform the early networking setup phase before driver bring-up.
+ *   The current implementation optionally registers the LWNL lower-half,
+ *   asks the default socket netstack to run its init hook, and then
+ *   starts the network-device manager.
  *
  * Input Parameters:
  *   None
@@ -261,8 +255,10 @@ void net_setup(void);
  * Name: net_initialize
  *
  * Description:
- *   This is called from the OS initialization logic at power-up reset in
- *   order to configure the networking subsystem.
+ *   Complete the later networking bring-up phase after the earlier
+ *   net_setup() stage.  The current implementation optionally starts
+ *   virtual network devices, starts the default socket netstack, and then
+ *   starts the TRWiFi event handler.
  *
  * Input Parameters:
  *   None
@@ -278,11 +274,10 @@ void net_initialize(void);
  * Name: net_checksd
  *
  * Description:
- *   Check if the socket descriptor is valid for the provided TCB and if it
- *   supports the requested access.  This trivial operation is part of the
- *   fdopen() operation when the fdopen() is performed on a socket descriptor.
- *   It simply performs some sanity checking before permitting the socket
- *   descriptor to be wrapped as a C FILE stream.
+ *   Dispatch socket-descriptor validation to the active network stack
+ *   selected by the descriptor range.  The helper returns backend results
+ *   directly and falls back to `-1` when no stack or check hook is
+ *   available for the descriptor.
  *
  ****************************************************************************/
 
@@ -290,10 +285,12 @@ int net_checksd(int fd, int oflags);
 
 
 /****************************************************************************
- * Name:
+ * Name: net_initlist
  *
  * Description:
- *   Initialize a list of sockets for a new task
+ *   Initialize the socket list owned by a new task.  The wrapper forwards
+ *   the request to the default socket netstack when that backend exposes
+ *   an initlist hook.
  *
  * Input Parameters:
  *   list -- A reference to the pre-alloated socket list to be initialized.
@@ -309,7 +306,9 @@ void net_initlist(FAR struct socketlist *list);
  * Name: net_releaselist
  *
  * Description:
- *   Release resources held by the socket list
+ *   Release resources held by a task-owned socket list.  The wrapper first
+ *   forwards backend-specific teardown to the default socket netstack and
+ *   then destroys the list semaphore.
  *
  * Input Parameters:
  *   list -- A reference to the pre-allocated socket list to be un-initialized.
@@ -325,13 +324,15 @@ void net_releaselist(FAR struct socketlist *list);
  * Function: net_close
  *
  * Description:
- *   Performs the close operation on socket descriptors
+ *   Dispatch socket close to the active network stack selected by
+ *   get_netstack_byfd(sockfd).
  *
  * Parameters:
  *   sockfd   Socket descriptor of socket
  *
  * Returned Value:
- *   0 on success; -1 on error with errno set appropriately.
+ *   Returns the backend close result directly. If no stack or close hook is
+ *   available for the descriptor, the bridge falls back to -1.
  *
  * Assumptions:
  *
@@ -343,11 +344,14 @@ int net_close(int sockfd);
  * Function: net_poll
  *
  * Description:
- *   poll() waits for one of a set of file descriptors to become ready to
- *   perform I/O.
+ *   Dispatch poll setup and teardown to the active network stack selected by
+ *   get_netstack_byfd(sd). The backend owns the actual readiness wait and
+ *   returns its own poll result.
  *
-  * Returned Value:
- *   0 on success; -1 on error with errno set appropriately.
+ * Returned Value:
+ *   Returns the backend poll result directly, including backend-specific
+ *   failure conventions such as lwIP's negated errno values. If no stack or
+ *   poll hook is available for the descriptor, the bridge falls back to -1.
  *
  * Assumptions:
  *
@@ -358,10 +362,12 @@ int net_poll(int sd, struct pollfd *fds, bool setup);
  * Function: net_dupsd
  *
  * Description:
- *   Clone a socket descriptor to an arbitray descriptor number.  If file
- *   descriptors are implemented, then this is called by dup() for the case
- *   of socket file descriptors.  If file descriptors are not implemented,
- *   then this function IS dup().
+ *   Dispatch socket descriptor duplication to the active network stack
+ *   selected by get_netstack_byfd(sockfd).
+ *
+ * Returned Value:
+ *   Returns the backend dup result directly. If no stack or dup hook is
+ *   available for the descriptor, the bridge falls back to -1.
  *
  ****************************************************************************/
 
@@ -371,10 +377,12 @@ int net_dupsd(int sockfd);
  * Function: net_dupsd2
  *
  * Description:
- *   Clone a socket descriptor to an arbitray descriptor number.  If file
- *   descriptors are implemented, then this is called by dup2() for the case
- *   of socket file descriptors.  If file descriptors are not implemented,
- *   then this function IS dup2().
+ *   Dispatch socket descriptor replacement to the active network stack
+ *   selected by get_netstack_byfd(sockfd1).
+ *
+ * Returned Value:
+ *   Returns the backend dup2 result directly. If no stack or dup2 hook is
+ *   available for the source descriptor, the bridge falls back to -1.
  *
  ****************************************************************************/
 
@@ -384,7 +392,11 @@ int net_dupsd2(int sockfd1, int sockfd2);
  * Function: net_clone
  *
  * Description:
- *   Performs the low level, common portion of net_dupsd() and net_dupsd2()
+ *   Clone one socket structure into another. The current bridge does not
+ *   dispatch this operation and simply reports that it is unsupported.
+ *
+ * Returned Value:
+ *   Always returns -1 in the current implementation.
  *
  ****************************************************************************/
 
@@ -394,7 +406,7 @@ int net_clone(FAR struct socket *psock1, FAR struct socket *psock2);
  * Name: net_vfcntl
  *
  * Description:
- *   Performs fcntl operations on socket
+ *   Perform a limited fcntl bridge on a socket descriptor.
  *
  * Input Parameters:
  *   sockfd - Socket descriptor of the socket to operate on
@@ -402,8 +414,10 @@ int net_clone(FAR struct socket *psock1, FAR struct socket *psock2);
  *   ap     - Command-specific arguments
  *
  * Returned Value:
- *   Zero (OK) is returned on success; -1 (ERROR) is returned on failure and
- *   the errno value is set appropriately.
+ *   Returns backend results directly for the supported bridge commands.
+ *   Unsupported commands fail with errno set by the wrapper. The current
+ *   implementation also has command-specific fallback quirks when no stack or
+ *   hook is present.
  *
  ****************************************************************************/
 
@@ -413,7 +427,8 @@ int net_vfcntl(int sockfd, int cmd, va_list ap);
  * Name: net_ioctl
  *
  * Description:
- *   Perform network device specific operations.
+ *   Bridge socket ioctl requests through the active network stack and then
+ *   through netdev ioctl fallback handlers when the stack reports `-ENOTTY`.
  *
  * Parameters:
  *   sockfd   Socket descriptor of device
@@ -421,17 +436,14 @@ int net_vfcntl(int sockfd, int cmd, va_list ap);
  *   arg      The argument of the ioctl cmd
  *
  * Return:
- *   >=0 on success (positive non-zero values are cmd-specific)
- *   On a failure, -1 is returned with errno set appropriately
+ *   >=0 on success (positive non-zero values are command-specific). On
+ *   failure, -1 is returned with errno set from the final negative result.
  *
  *   EBADF
  *     'sockfd' is not a valid descriptor.
- *   EFAULT
- *     'arg' references an inaccessible memory area.
  *   ENOTTY
- *     'cmd' not valid.
- *   EINVAL
- *     'arg' is not valid.
+ *     'cmd' is outside the accepted `_FIOCVALID()` / `_SIOCVALID()` range or
+ *     no handler accepts it.
  *   ENOTTY
  *     'sockfd' is not associated with a network device.
  *   ENOTTY

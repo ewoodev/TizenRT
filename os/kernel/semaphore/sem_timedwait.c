@@ -99,8 +99,8 @@
  * Name: sem_timeout
  *
  * Description:
- *   This function is called if the timeout elapses before the message queue
- *   becomes non-empty.
+ *   This function is called when a semaphore wait watchdog expires before
+ *   the blocked task acquires the semaphore.
  *
  * Parameters:
  *   argc  - the number of arguments (should be 1)
@@ -167,14 +167,13 @@ void sem_timeout(int argc, uint32_t pid)
  *   0 (OK) on success. On failure, -1 (ERROR) is returned and the errno
  *   is set appropriately:
  *
- *   EINVAL    The sem argument does not refer to a valid semaphore.  Or the
- *             thread would have blocked, and the abstime parameter specified
- *             a nanoseconds field value less than zero or greater than or
- *             equal to 1000 million.
+ *   EINVAL    The semaphore is invalid, or the call would have blocked and
+ *             `abstime->tv_nsec` is outside the valid range.
+ *   ENOMEM    No watchdog could be allocated for the timed wait.
  *   ETIMEDOUT The semaphore could not be locked before the specified timeout
  *             expired.
- *   EDEADLK   A deadlock condition was detected.
- *   EINTR     A signal interrupted this function.
+ *   EINTR     A signal interrupted the blocked wait.
+ *   ECANCELED A deferred cancellation was acted on while entering or waiting.
  *
  ****************************************************************************/
 

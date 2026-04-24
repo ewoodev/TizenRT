@@ -231,39 +231,46 @@ extern "C" {
 
 /**
  * @ingroup TIME_KERNEL
- * @brief clock and timer functions
+ * @brief set the realtime base used by `clock_gettime()` and `gettimeofday()`
  * @details @b #include <time.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * The current implementation accepts only `CLOCK_REALTIME`. It stores a new
+ * realtime base in `g_basetime` and then subtracts the bias returned by
+ * `clock_systimespec()`. Later clock reads use the adjusted base through the
+ * same helper path. It does not update RTC hardware directly, so exact results
+ * depend on the active backend path. \n
  * @since TizenRT v1.0
  */
 int clock_settime(clockid_t clockid, FAR const struct timespec *tp);
 /**
  * @ingroup TIME_KERNEL
- * @brief clock and timer functions
+ * @brief read the current realtime clock or optional `CLOCK_MONOTONIC` path
  * @details @b #include <time.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * `CLOCK_REALTIME` returns `g_basetime` plus the current bias reported by
+ * `clock_systimespec()`. When `CONFIG_CLOCK_MONOTONIC` is enabled,
+ * `CLOCK_MONOTONIC` returns that helper result directly. Other clock IDs fail.
+ * \n
  * @since TizenRT v1.0
  */
 int clock_gettime(clockid_t clockid, FAR struct timespec *tp);
 /**
  * @ingroup TIME_KERNEL
- * @brief clock and timer functions
+ * @brief report the resolution used for supported realtime clock reads
  * @details @b #include <time.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * The current implementation accepts only `CLOCK_REALTIME` and reports a
+ * resolution of `NSEC_PER_TICK` nanoseconds. \n
  * @since TizenRT v1.0
  */
 int clock_getres(clockid_t clockid, FAR struct timespec *res);
 
 /**
  * @ingroup TIME_KERNEL
- * @brief returns the implementation's best approximation to the
- * processor time used by the process since the beginning of a
- * implementation-defined era related only to the process invocation.
+ * @brief return the current system timer count in clock ticks
  * @details @b #include <time.h> \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * This implementation returns `clock_systimer()`, so it reflects system
+ * uptime ticks rather than per-process CPU accounting. \n
  * @since TizenRT v2.0
  */
 clock_t clock(void);
@@ -377,48 +384,62 @@ time_t time(FAR time_t *tloc);
 
 /**
  * @ingroup TIME_KERNEL
- * @brief create a per-process timer
+ * @brief Create a POSIX timer backed by the watchdog timer subsystem.
  * @details @b #include <time.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * The current implementation accepts only `CLOCK_REALTIME`. A successful call
+ * returns a disarmed timer handle through `timerid`. When `evp` is `NULL`, the
+ * timer is configured to raise `SIGALRM` and to pass the timer handle back in
+ * `sigev_value.sival_ptr`.
  * @since TizenRT v1.0
  */
 int timer_create(clockid_t clockid, FAR struct sigevent *evp, FAR timer_t *timerid);
 /**
  * @ingroup TIME_KERNEL
- * @brief delete a per-process timer
+ * @brief Delete a timer created by `timer_create()`.
  * @details @b #include <time.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * The timer is released through the internal timer reference counter. An armed
+ * timer is torn down together with its watchdog instance.
  * @since TizenRT v1.0
  */
 int timer_delete(timer_t timerid);
 /**
  * @ingroup TIME_KERNEL
- * @brief per-process timers
+ * @brief Arm, disarm, or re-arm a timer.
  * @details @b #include <time.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * `value->it_value` selects the next expiration. A non-positive `it_value`
+ * disarms the timer and returns without updating the stored periodic delay.
+ * When `TIMER_ABSTIME` is set, `it_value` is interpreted against
+ * `CLOCK_REALTIME`; otherwise it is treated as a relative delay. A non-zero
+ * `it_interval` enables periodic restart when the function proceeds past the
+ * disarm check. The current implementation ignores `ovalue` and does not
+ * report the previous timer state.
  * @since TizenRT v1.0
  */
 int timer_settime(timer_t timerid, int flags, FAR const struct itimerspec *value, FAR struct itimerspec *ovalue);
 /**
  * @ingroup TIME_KERNEL
- * @brief per-process timers
+ * @brief Read the remaining time and last armed watchdog delay of a timer.
  * @details @b #include <time.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * The remaining time is taken from the underlying watchdog tick count and is
+ * returned as a relative interval in `value->it_value`. `value->it_interval`
+ * reflects the last armed delay currently stored in the timer state.
  * @since TizenRT v1.0
  */
 int timer_gettime(timer_t timerid, FAR struct itimerspec *value);
 /**
- * @cond
- * @internal
+ * @ingroup TIME_KERNEL
+ * @brief Report timer overrun count support status.
+ * @details @b #include <time.h> \n
+ * SYSTEM CALL API \n
+ * The current implementation is a stub. It always fails with `ENOSYS` and does
+ * not inspect `timerid`.
+ * @since TizenRT v1.0
  */
 int timer_getoverrun(timer_t timerid);
-/**
- * @endcond
- */
 
 /**
  * @ingroup TIME_KERNEL

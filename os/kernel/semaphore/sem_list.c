@@ -52,7 +52,7 @@ sq_queue_t g_sem_list;
  * Name: sem_register
  *
  * Description:
- *   Register semaphore to a list of kernel semaphores.
+ *   Register a semaphore in the kernel recovery list.
  *
  * Parameters:
  *   sem - Semaphore descriptor
@@ -88,7 +88,7 @@ void sem_register(FAR sem_t *sem)
  * Name: sem_unregister
  *
  * Description:
- *   Unegister semaphore from a list of kernel semaphores.
+ *   Unregister a semaphore from the kernel recovery list.
  *
  * Parameters:
  *   sem - Semaphore descriptor

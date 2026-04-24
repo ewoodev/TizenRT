@@ -86,16 +86,17 @@
  * Name: sigwaitinfo
  *
  * Description:
- *   This function is equivalent to sigtimedwait with a NULL timeout
- *   parameter.
+ *   This function is equivalent to sigtimedwait() with a NULL timeout
+ *   parameter and therefore waits indefinitely for one of the signals in
+ *   set, unless an unrelated unmasked signal interrupts the wait first.
  *
  * Parameters:
- *   set - The pending signal set
- *   info - The returned value
+ *   set - The signal set of interest
+ *   info - The returned signal information, if non-NULL
  *
  * Return Value:
- *   Signal number that cause the wait to be terminated, otherwise -1 (ERROR)
- *   is returned.
+ *   Signal number that caused the wait to terminate on success; otherwise
+ *   -1 (ERROR) is returned with the same errno behavior as sigtimedwait().
  *
  * Assumptions:
  *

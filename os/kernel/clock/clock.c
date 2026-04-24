@@ -66,20 +66,15 @@
  * Name:  clock
  *
  * Description:
- *   The clock() function returns the implementation's best approximation to
- *   the processor time used by the process since the beginning of a
- *   implementation-defined era related only to the process invocation.
- *
- *   To determine the time in seconds, the value returned by clock() should
- *   be divided by the value of the macro CLOCKS_PER_SEC as defined in <time.h>.
+ *   Return the current system timer count in clock ticks. This implementation
+ *   is a thin wrapper over clock_systimer() and does not attempt to measure
+ *   per-process CPU consumption.
  *
  * Input Parameters:
  *   None
  *
  * Returned Value:
- *   The system time in units of clock ticks is returned.  If the processor
- *   time used is not available or its value cannot be represented, the
- *   function will return the value (clock_t)-1.
+ *   The current system timer count in clock ticks.
  *
  ****************************************************************************/
 

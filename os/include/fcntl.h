@@ -195,19 +195,27 @@ extern "C" {
 /* POSIX-like File System Interfaces */
 /**
  * @ingroup FCNTL_KERNEL
- * @brief open file
+ * @brief open an existing driver or mountpoint path and return a descriptor
  * @details @b #include <fcntl.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * The current implementation resolves an existing inode, allocates a file
+ * descriptor, and calls the driver or mountpoint open method. Missing paths
+ * fail with `ENOENT`. When `CONFIG_FILE_MODE` is enabled, the variadic mode
+ * argument is currently consumed when either `O_WRONLY` or `O_CREAT` is set,
+ * but this path still does not create a new inode by itself. \n
  * @since TizenRT v1.0
  */
 int open(const char *path, int oflag, ...);
 /**
  * @ingroup FCNTL_KERNEL
- * @brief file control
+ * @brief control a file or configured socket descriptor
  * @details @b #include <fcntl.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * The current implementation supports only a subset of `fcntl()` commands.
+ * File descriptors are handled through the VFS file path, and configured
+ * socket descriptors are delegated to the network control path when built.
+ * Several helper-side failures also lose their original `errno` detail in
+ * the public wrapper. \n
  * @since TizenRT v1.0
  */
 int fcntl(int fd, int cmd, ...);

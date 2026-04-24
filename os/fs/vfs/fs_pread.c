@@ -100,11 +100,11 @@ ssize_t file_pread(FAR struct file *filep, FAR void *buf, size_t nbytes, off_t o
 		return ERROR;
 	}
 
-	/* Then seek to the correct position in the file */
+	/* Then seek to the requested position in the file */
 
 	pos = file_seek(filep, offset, SEEK_SET);
 	if (pos == (off_t)-1) {
-		/* This might fail is the offset is beyond the end of file */
+		/* This fails when file_seek() rejects the target position */
 
 		return ERROR;
 	}
@@ -135,12 +135,12 @@ ssize_t file_pread(FAR struct file *filep, FAR void *buf, size_t nbytes, off_t o
  * Name: pread
  *
  * Description:
- *   The pread() function performs the same action as read(), except that it
- *   reads from a given position in the file without changing the file
- *   pointer. The first three arguments to pread() are the same as read()
- *   with the addition of a fourth argument offset for the desired position
- *   inside the file. An attempt to perform a pread() on a file that is
- *   incapable of seeking results in an error.
+ *   Save the current file position with file_seek(), seek to offset,
+ *   perform the read, then attempt to restore the saved position. The
+ *   descriptor therefore has to support the VFS seek path. Several helper
+ *   failures are collapsed to plain ERROR before the wrapper maps them back
+ *   into errno. A restore failure after a successful read still turns the
+ *   public result into ERROR.
  *
  *   NOTE: This function could have been wholly implemented within libc but
  *   it is not.  Why?  Because if pread were implemented in libc, it would
@@ -148,15 +148,16 @@ ssize_t file_pread(FAR struct file *filep, FAR void *buf, size_t nbytes, off_t o
  *   only three.
  *
  * Parameters:
- *   file     File structure instance
+ *   fd       File descriptor
  *   buf      User-provided to save the data
  *   nbytes   The maximum size of the user-provided buffer
  *   offset   The file offset
  *
  * Return:
- *   The positive non-zero number of bytes read on success, 0 on if an
- *   end-of-file condition, or -1 on failure with errno set appropriately.
- *   See read() return values
+ *   The positive non-zero number of bytes read on success, 0 on end-of-file,
+ *   or ERROR on failure. The current wrapper may lose detailed errno values
+ *   on seek or restore failures that collapse to plain ERROR, and a restore
+ *   failure can leave the file position changed.
  *
  ****************************************************************************/
 

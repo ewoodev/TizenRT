@@ -253,82 +253,112 @@ int pause(void);
  * @{
  */
 /**
- * @brief close a file descriptor
+ * @brief close a file or configured socket descriptor
  * @details @b #include <unistd.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * File-descriptor values in the file range are closed through the VFS file
+ * layer. When networking is enabled, descriptor values in the socket range
+ * are redirected to the socket close path. \n
  * @since TizenRT v1.0
  */
 int close(int fd);
 /**
- * @brief duplicate an open file descriptor
+ * @brief duplicate a file or configured socket descriptor
  * @details @b #include <unistd.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * File descriptors in the normal file range are duplicated through the VFS
+ * file path. When networking is enabled, descriptors in the configured
+ * socket range are redirected to the socket duplication path instead. \n
  * @since TizenRT v1.0
  */
 int dup(int fd);
 /**
- * @brief duplicate an open file descriptor
+ * @brief duplicate a descriptor onto a target descriptor slot
  * @details @b #include <unistd.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * In mixed file/socket builds, this API dispatches to the file or socket
+ * duplication path based on `fd1`. The current file-descriptor path keeps the
+ * `fd1 == fd2` fast path, but otherwise reports success with the helper's
+ * current return convention rather than normalizing the result to `fd2`. \n
  * @since TizenRT v1.0
  */
 int dup2(int fd1, int fd2);
 /**
- * @brief synchronize changes to a file
+ * @brief synchronize a writable mountpoint-backed file descriptor
  * @details @b #include <unistd.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * The current `os/` implementation is built only when mountpoints are
+ * enabled. It succeeds only for descriptors opened for writing on
+ * mountpoints whose operations table provides `sync`. \n
  * @since TizenRT v1.0
  */
 int fsync(int fd);
 /**
- * @brief move the read/write file offset
+ * @brief reposition a file descriptor by delegating to the VFS seek path
  * @details @b #include <unistd.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * This implementation uses `file_seek()` on the VFS file object. Without a
+ * driver-provided seek method, only `SEEK_SET` and `SEEK_CUR` are synthesized;
+ * `SEEK_END` falls back to failure. Some helper failures also lose their
+ * original errno detail in the current wrapper. \n
  * @since TizenRT v1.0
  */
 off_t lseek(int fd, off_t offset, int whence);
 /**
- * @brief read from a file
+ * @brief read from a file descriptor or configured socket path
  * @details @b #include <unistd.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * File descriptors in the normal file range are serviced through the VFS file
+ * layer. When networking is enabled, out-of-range descriptors may be routed
+ * to the socket receive path instead. Most failures follow the normal
+ * `errno` plus `ERROR` convention, but some early helper failures are
+ * returned directly by the current wrapper. \n
  * @since TizenRT v1.0
  */
 ssize_t read(int fd, FAR void *buf, size_t nbytes);
 /**
- * @brief write to another user
+ * @brief write to a file descriptor or configured socket path
  * @details @b #include <unistd.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * File descriptors in the normal file range are serviced through the VFS file
+ * layer. In builds with the socket write path enabled, out-of-range
+ * descriptors may be redirected to `send(..., 0)`. Most failures follow the
+ * normal `errno` plus `ERROR` convention, but some early helper failures are
+ * returned directly by the current wrapper. \n
  * @since TizenRT v1.0
  */
 ssize_t write(int fd, FAR const void *buf, size_t nbytes);
 /**
- * @brief read from a file
+ * @brief read from a temporary offset through a save/seek/restore sequence
  * @details @b #include <unistd.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * The current implementation saves the current file position with `file_seek`,
+ * seeks to `offset`, performs the read, and then attempts to restore the
+ * saved position. The descriptor therefore has to support the VFS seek path.
+ * A restore failure turns the call into an error and may leave the file
+ * position changed. \n
  * @since TizenRT v1.0
  */
 ssize_t pread(int fd, FAR void *buf, size_t nbytes, off_t offset);
 /**
- * @brief write on a file
+ * @brief write at a temporary offset through a save/seek/restore sequence
  * @details @b #include <unistd.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * The current implementation saves the current file position with `file_seek`,
+ * seeks to `offset`, performs the write, and then attempts to restore the
+ * saved position. The descriptor therefore has to support the VFS seek path.
+ * A restore failure turns the call into an error and may leave the file
+ * position changed. \n
  * @since TizenRT v1.0
  */
 ssize_t pwrite(int fd, FAR const void *buf, size_t nbytes, off_t offset);
 /**
- * @brief adjust size of file
+ * @brief truncate a writable mountpoint-backed file descriptor
  * @details @b #include <unistd.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * The current `os/` implementation is built only when mountpoints are
+ * enabled. It requires a non-negative `length`, a descriptor opened for
+ * writing, and a mountpoint whose operations table provides `truncate`. \n
  * @since TizenRT v3.1 PRE
  */
 int ftruncate(int fd, off_t length);
@@ -392,19 +422,23 @@ FAR char *getcwd(FAR char *buf, size_t size);
 int access(FAR const char *path, int amode);
 /**
  * @ingroup UNISTD_KERNEL
- * @brief remove a directory
+ * @brief remove a directory through a mountpoint or pseudo-directory path
  * @details @b #include <unistd.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * The current implementation delegates to a mountpoint `rmdir` hook when a
+ * mountpoint owns the path. Otherwise it removes only pseudo-filesystem
+ * directory nodes that have no operations and no children. \n
  * @since TizenRT v1.0
  */
 int rmdir(FAR const char *pathname);
 /**
  * @ingroup UNISTD_KERNEL
- * @brief call the unlink function
+ * @brief remove a mountpoint path or pseudo-file node
  * @details @b #include <unistd.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * The current implementation delegates to a mountpoint `unlink` hook when a
+ * mountpoint owns the path. In the pseudo-filesystem it removes only file-like
+ * nodes with operations, not pseudo-directories. \n
  * @since TizenRT v1.0
  */
 int unlink(FAR const char *pathname);

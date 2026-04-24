@@ -71,12 +71,14 @@
  * Name: getrandom
  *
  * Description:
- *   Fill a buffer of arbitrary length with randomness. This is the
- *   preferred interface for getting random numbers. The traditional
- *   /dev/random approach is susceptible for things like the attacker
- *   exhausting file descriptors on purpose.
+ *   Fill a buffer of arbitrary length with randomness from the in-kernel
+ *   random pool. This is the preferred interface for getting random
+ *   numbers. The traditional /dev/random approach is susceptible to
+ *   issues such as deliberate file-descriptor exhaustion.
  *
- *   Note that this function cannot fail, other than by asserting.
+ *   The implementation serializes access with the random-pool semaphore,
+ *   retries interrupted waits, and does not expose a recoverable error
+ *   path other than assertions inside the random-pool logic.
  *
  * Parameters:
  *   bytes  - Buffer for returned random bytes

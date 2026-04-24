@@ -71,21 +71,18 @@
  * Name: fstat
  *
  * Description:
- *   The fstat() function will obtain information about an open file
- *   associated with the file descriptor 'fd', and will write it to the area
- *   pointed to by 'buf'.
- *
- *   The 'buf' argument is a pointer to a stat structure, as defined in
- *   <sys/stat.h>, into which information is placed concerning the file.
+ *   Return metadata through a file-table descriptor slot. File descriptors
+ *   that resolve to mountpoints use the mountpoint fstat() hook.
+ *   Pseudo-filesystem descriptors reuse inode_stat() instead. There is no
+ *   socket fallback, and this path assumes the resolved slot already refers
+ *   to an initialized VFS file.
  *
  * Input Parameters:
- *   fd  - The file descriptor associated with the open file of interest
- *   buf - The caller provide location in which to return information about
- *         the open file.
+ *   fd  - The file descriptor slot associated with the file of interest
+ *   buf - The caller-provided location in which to return metadata
  *
  * Returned Value:
- *   Upon successful completion, 0 shall be returned. Otherwise, -1 shall be
- *   returned and errno set to indicate the error.
+ *   OK on success, or ERROR on failure with errno set.
  *
  ****************************************************************************/
 
@@ -102,9 +99,9 @@ int fstat(int fd, FAR struct stat *buf)
 		return ERROR;
 	}
 
-	/* The descriptor is in a valid range for a file descriptor... do the
-	 * fstat.  First, get the file structure.  Note that on failure,
-	 * fs_getfilep() will set the errno variable.
+	/* The descriptor is in a valid range for a file descriptor. First, get
+	 * the file structure pointer for this descriptor slot. On failure,
+	 * fs_getfilep() returns a negated errno value.
 	 */
 
 	ret = fs_getfilep(fd, &filep);
@@ -112,7 +109,9 @@ int fstat(int fd, FAR struct stat *buf)
 		goto errout;
 	}
 
-	/* Get the inode from the file structure */
+	/* Get the inode from the file structure. The current path assumes the
+	 * descriptor slot already refers to an initialized VFS file.
+	 */
 	inode = filep->f_inode;
 	DEBUGASSERT(inode != NULL);
 

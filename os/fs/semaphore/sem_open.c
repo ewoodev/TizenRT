@@ -124,7 +124,7 @@
  *        unless one of this name already exists.
  *   Optional parameters.  When the O_CREAT flag is specified, two optional
  *     parameters are expected:
- *     1. mode_t mode (ignored), and
+ *     1. mode_t mode (ignored by the current implementation), and
  *     2. unsigned int value.  This initial value of the semaphore. Valid
  *        initial values of the semaphore must be less than or equal to
  *        SEM_VALUE_MAX.

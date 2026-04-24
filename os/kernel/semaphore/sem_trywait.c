@@ -97,9 +97,9 @@
  * Name: sem_trywait
  *
  * Description:
- *   This function locks the specified semaphore only if the semaphore is
- *   currently not locked.  Otherwise, it locks the semaphore.  In either
- *   case, the call returns without blocking.
+ *   This function attempts to lock the specified semaphore without blocking.
+ *   It succeeds only when a count is currently available.  Otherwise it
+ *   returns immediately with an error.
  *
  * Parameters:
  *   sem - the semaphore descriptor

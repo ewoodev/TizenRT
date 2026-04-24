@@ -94,18 +94,22 @@
  * Name: mq_msgqalloc
  *
  * Description:
- *   This function implements a part of the POSIX message queue open logic.
- *   It allocates and initializes a struct mqueue_inode_s structure.
+ *   This function implements the queue-object allocation step of the
+ *   POSIX message queue open logic.  It allocates a zeroed
+ *   struct mqueue_inode_s, initializes the queued-message list, copies
+ *   queue limits from attr when present, and otherwise falls back to the
+ *   internal defaults.
  *
  * Parameters:
  *   mode   - mode_t value is ignored
- *   attr   - The mq_maxmsg attribute is used at the time that the message
- *            queue is created to determine the maximum number of
- *            messages that may be placed in the message queue.
+ *   attr   - Optional creation attributes.  mq_maxmsg and mq_msgsize are
+ *            copied into the new queue object.  mq_flags and mq_curmsgs
+ *            are ignored on input.
  *
  * Return Value:
- *   The allocated and initialized message queue structure or NULL in the
- *   event of a failure.
+ *   The allocated and initialized message queue structure or NULL on
+ *   failure.  This helper does not set errno when allocation fails or
+ *   when attr->mq_msgsize exceeds MQ_MAX_BYTES.
  *
  ****************************************************************************/
 
@@ -113,8 +117,8 @@ FAR struct mqueue_inode_s *mq_msgqalloc(mode_t mode, FAR struct mq_attr *attr)
 {
 	FAR struct mqueue_inode_s *msgq;
 
-	/* Check if the caller is attempting to allocate a message for messages
-	 * larger than the configured maximum message size.
+	/* Reject requests for messages larger than the configured maximum
+	 * message size.
 	 */
 
 	DEBUGASSERT(!attr || attr->mq_msgsize <= MQ_MAX_BYTES);
@@ -127,7 +131,7 @@ FAR struct mqueue_inode_s *mq_msgqalloc(mode_t mode, FAR struct mq_attr *attr)
 	msgq = (FAR struct mqueue_inode_s *)kmm_zalloc(sizeof(struct mqueue_inode_s));
 
 	if (msgq) {
-		/* Initialize the new named message queue */
+		/* Initialize the new message queue object. */
 
 		sq_init(&msgq->msglist);
 		if (attr) {

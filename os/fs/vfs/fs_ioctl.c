@@ -117,31 +117,32 @@ int file_ioctl(FAR struct file *filep, int req, unsigned long arg)
 }
 
 /****************************************************************************
- * Name: ioctl/fs_ioctl
+ * Name: ioctl / fs_ioctl
  *
  * Description:
- *   Perform device specific operations.
+ *   Dispatch a public ioctl request to either the socket ioctl path or the
+ *   VFS file-driver ioctl path.
  *
  * Input Parameters:
- *   fd       File/socket descriptor of device
+ *   fd       File or socket descriptor of the target object
  *   req      The ioctl command
- *   arg      The argument of the ioctl cmd
+ *   arg      The ioctl argument value
  *
  * Returned Value:
- *   >=0 on success (positive non-zero values are cmd-specific)
- *   -1 on failure with errno set properly:
+ *   A non-negative command-specific result on success.
+ *   `-1` (`ERROR`) on failure with errno set properly:
  *
  *   EBADF
  *     'fd' is not a valid descriptor.
  *   EFAULT
  *     'arg' references an inaccessible memory area.
  *   EINVAL
- *     'cmd' or 'arg' is not valid.
+ *     'req' or 'arg' is not valid.
  *   ENOTTY
  *     'fd' is not associated with a character special device.
  *   ENOTTY
- *      The specified request does not apply to the kind of object that the
- *      descriptor 'fd' references.
+ *     The specified request does not apply to the kind of object that the
+ *     descriptor 'fd' references.
  *
  ****************************************************************************/
 

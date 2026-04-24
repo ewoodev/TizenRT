@@ -99,7 +99,9 @@
  * Name: clock_getres
  *
  * Description:
- *   Clock Functions based on POSIX APIs
+ *   Return the resolution used by supported clock_gettime() queries. The
+ *   current implementation accepts only CLOCK_REALTIME and reports
+ *   NSEC_PER_TICK nanoseconds.
  *
  ************************************************************************/
 

@@ -97,8 +97,8 @@
  *   asynchronous I/O operation.
  *
  * Input Parameters:
- *   arg - Worker argument.  In this case, a pointer to an instance of
- *     struct aiocb cast to void *.
+ *   arg - Worker argument.  In this case, a pointer to struct
+ *         aio_container_s cast to void *.
  *
  * Returned Value:
  *   None
@@ -109,6 +109,9 @@ static void aio_fsync_worker(FAR void *arg)
 {
 	FAR struct aio_container_s *aioc = (FAR struct aio_container_s *)arg;
 	FAR struct aiocb *aiocbp;
+#ifdef AIO_HAVE_FILEP
+	FAR struct file *filep;
+#endif
 	pid_t pid;
 #ifdef CONFIG_PRIORITY_INHERITANCE
 	uint8_t prio;
@@ -125,11 +128,14 @@ static void aio_fsync_worker(FAR void *arg)
 #ifdef CONFIG_PRIORITY_INHERITANCE
 	prio = aioc->aioc_prio;
 #endif
+#ifdef AIO_HAVE_FILEP
+	filep = aioc->u.aioc_filep;
+#endif
 	aiocbp = aioc_decant(aioc);
 
-	/* Perform the fsync using u.aioc_filep */
+	/* Perform the fsync using the resolved file structure. */
 
-	ret = file_fsync(aioc->u.aioc_filep);
+	ret = file_fsync(filep);
 	if (ret < 0) {
 		int errcode = get_errno();
 		fdbg("ERROR: fsync failed: %d\n", errcode);
@@ -158,50 +164,19 @@ static void aio_fsync_worker(FAR void *arg)
  * Name: aio_fsync
  *
  * Description:
- *   The aio_fsync() function asynchronously forces all I/O operations
- *   associated with the file indicated by the file descriptor aio_fildes
- *   member of the aiocb structure referenced by the aiocbp argument and
- *   queued at the time of the call to aio_fsync() to the synchronized
- *   I/O completion state. The function call will return when the
- *   synchronization request has been initiated or queued to the file or
- *   device (even when the data cannot be synchronized immediately).
+ *   Queue one low-priority worker request that calls `file_fsync()` for the
+ *   file descriptor stored in aiocbp->aio_fildes.
  *
- *   If op is O_DSYNC, all currently queued I/O operations will be
- *   completed as if by a call to fdatasync(); that is, as defined for
- *   synchronized I/O data integrity completion. If op is O_SYNC, all
- *   currently queued I/O operations will be completed as if by a call to
- *   fsync(); that is, as defined for synchronized I/O file integrity
- *   completion. If the aio_fsync() function fails, or if the operation
- *   queued by aio_fsync() fails, then, as for fsync() and fdatasync(),
- *   outstanding I/O operations are not guaranteed to have been completed.
- *   [See "POSIX Compliance" below]
+ *   The descriptor is resolved up front through `fs_getfilep()`, so this
+ *   entry point currently handles only file-descriptor paths that have a
+ *   `struct file` representation.  The caller's aiocb remains owned by the
+ *   caller and is used in-place until completion.
  *
- *   If aio_fsync() succeeds, then it is only the I/O that was queued at
- *   the time of the call to aio_fsync() that is guaranteed to be forced
- *   to the relevant completion state. The completion of subsequent I/O
- *   on the file descriptor is not guaranteed to be completed in a
- *   synchronized fashion.
- *
- *   The aiocbp argument refers to an asynchronous I/O control block. The
- *   aiocbp value may be used as an argument to aio_error() and aio_return()
- *   in order to determine the error status and return status, respectively,
- *   of the asynchronous operation while it is proceeding. When the request
- *   is queued, the error status for the operation is [EINPROGRESS]. When
- *   all data has been successfully transferred, the error status will be
- *   reset to reflect the success or failure of the operation. If the
- *   operation does not complete successfully, the error status for the
- *   operation will be set to indicate the error. The aio_sigevent member
- *   determines the asynchronous notification to occur when all operations
- *   have achieved synchronized I/O completion. All other members of the
- *   structure referenced by aiocbp are ignored. If the control block
- *   referenced by aiocbp becomes an illegal address prior to asynchronous
- *   I/O completion, then the behavior is undefined.
- *
- *   If the aio_fsync() function fails or aiocbp indicates an error condition,
- *   data is not guaranteed to have been successfully transferred.
+ *   The current implementation ignores op and does not distinguish O_SYNC
+ *   from O_DSYNC.
  *
  * Input Parameters:
- *   op     - Should be either O_SYNC or O_DSYNC.  Ignored in this implementation.
+ *   op     - Compatibility argument.  Currently ignored.
  *   aiocbp - A pointer to an instance of struct aiocb
  *
  * Returned Value:
@@ -209,26 +184,8 @@ static void aio_fsync_worker(FAR void *arg)
  *   successfully queued; otherwise, the function will return the value -1 and
  *   set errno to indicate the error.
  *
- *   The aio_fsync() function will fail if:
- *
- *     EAGAIN - The requested asynchronous operation was not queued due to
- *       temporary resource limitations.
- *     EBADF - The aio_fildes member of the aiocb structure referenced by
- *       the aiocbp argument is not a valid file descriptor open for writing.
- *     EINVAL - This implementation does not support synchronized I/O for
- *       this file.
- *      EINVAL - A value of op other than O_DSYNC or O_SYNC was specified.
- *
- *   In the event that any of the queued I/O operations fail, aio_fsync()
- *   will return the error condition defined for read() and write(). The
- *   error is returned in the error status for the asynchronous fsync()
- *   operation, which can be retrieved using aio_error().
- *
- * POSIX Compliance
- * - TinyAra does not currently make any distinction between O_DYSNC and O_SYNC.
- *   Hence, the 'op' argument is ignored altogether.
- * - Most errors required in the standard are not detected at this point.
- *   There are no pre-queuing checks for the validity of the operation.
+ *   Queueing can still block while waiting for one of the pre-allocated
+ *   AIO containers to become available.
  *
  ****************************************************************************/
 

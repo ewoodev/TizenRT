@@ -156,9 +156,13 @@ extern "C" {
 
 /**
  * @ingroup STAT_KERNEL
- * @brief  POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * @brief create a directory through a writable mountpoint or pseudo-FS reserve path
  * @details @b #include <sys/stat.h> \n
- * SYSTEM CALL API
+ * SYSTEM CALL API \n
+ * The current implementation forwards directory creation to the writable
+ * mountpoint `mkdir` operation when a mountpoint owns the path. When no
+ * containing inode exists and pseudo-filesystem operations are enabled, it
+ * reserves a pseudo-directory inode directly instead. \n
  * @since TizenRT v1.0
  */
 int mkdir(FAR const char *pathname, mode_t mode);
@@ -172,20 +176,30 @@ int mkdir(FAR const char *pathname, mode_t mode);
 int mkfifo(FAR const char *pathname, mode_t mode);
 /**
  * @ingroup STAT_KERNEL
- * @brief  POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * @brief attempt metadata collection for a path through the VFS pathname lookup
  * @details @b #include <sys/stat.h> \n
- * SYSTEM CALL API
+ * SYSTEM CALL API \n
+ * The exact root path `/` is synthesized without an inode. Other paths are
+ * resolved through `inode_find()`, then handled either by the owning
+ * mountpoint `stat` hook when that hook exists or by pseudo-filesystem inode
+ * metadata synthesis. If a mountpoint is found without a `stat` hook, the
+ * current wrapper does not force an error or guarantee that `buf` was updated. \n
  * @since TizenRT v1.0
  */
 int stat(const char *path, FAR struct stat *buf);
 /**
- * @cond
- * @internal
+ * @ingroup STAT_KERNEL
+ * @brief collect metadata through a file-table descriptor slot
+ * @details @b #include <sys/stat.h> \n
+ * SYSTEM CALL API \n
+ * The current implementation accepts only file-table descriptors. It resolves
+ * the descriptor through `fs_getfilep()` and then assumes the returned slot
+ * already refers to an initialized VFS file. Mountpoint inodes use the
+ * mountpoint `fstat` hook; pseudo-filesystem inodes use the shared inode
+ * metadata synthesis path instead. \n
+ * @since TizenRT v1.0
  */
 int fstat(int fd, FAR struct stat *buf);
-/**
- * @endcond
- */
 #undef EXTERN
 #if defined(__cplusplus)
 }

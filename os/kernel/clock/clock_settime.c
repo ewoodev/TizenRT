@@ -101,7 +101,11 @@
  * Name: clock_settime
  *
  * Description:
- *   Clock Functions based on POSIX APIs
+ *   Update the realtime base stored in g_basetime. The current
+ *   implementation accepts only CLOCK_REALTIME and derives the stored base
+ *   by subtracting the bias returned from clock_systimespec() from the
+ *   caller-provided wall time. This changes later clock reads that share the
+ *   same helper path, but it does not write RTC hardware directly.
  *
  ************************************************************************/
 
@@ -122,9 +126,8 @@ int clock_settime(clockid_t clock_id, FAR const struct timespec *tp)
 	 */
 
 	if (clock_id == CLOCK_REALTIME) {
-		/* Interrupts are disabled here so that the in-memory time
-		 * representation and the RTC setting will be as close as
-		 * possible.
+		/* Interrupts are disabled here so that the basetime update and
+		 * helper read stay closely paired.
 		 */
 
 		flags = enter_critical_section();
@@ -134,15 +137,15 @@ int clock_settime(clockid_t clock_id, FAR const struct timespec *tp)
 		g_basetime.tv_sec  = tp->tv_sec;
 		g_basetime.tv_nsec = tp->tv_nsec;
 
-		/* Get the elapsed time since power up (in milliseconds).  This is a
-		 * bias value that we need to use to correct the base time.
+		/* Get the current bias reported by the shared clock helper. Depending
+		 * on configuration this may be elapsed uptime or an RTC-derived
+		 * delta. We use that bias to correct the stored base time.
 		 */
 
 		(void)clock_systimespec(&bias);
 
-		/* Subtract that bias from the basetime so that when the system
-		 * timer is again added to the base time, the result is the current
-		 * time relative to basetime.
+		/* Subtract that bias from the basetime so that later realtime reads
+		 * reconstruct time through the same helper path.
 		 */
 
 		if (g_basetime.tv_nsec < bias.tv_nsec) {

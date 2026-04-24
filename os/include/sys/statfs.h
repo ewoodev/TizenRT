@@ -153,7 +153,28 @@ extern "C" {
  * form of the struct statfs.
  */
 
+/**
+ * @ingroup STAT_KERNEL
+ * @brief collect filesystem-capacity metadata for a path
+ * @details @b #include <sys/statfs.h> \n
+ * SYSTEM CALL API \n
+ * The current implementation resolves the path through `inode_find()`, then
+ * delegates to a mountpoint `statfs` hook or synthesizes pseudo-filesystem
+ * data when the resolved inode is not a mountpoint. \n
+ * @since TizenRT v1.0
+ */
 EXTERN int statfs(const char *path, struct statfs *buf);
+/**
+ * @ingroup STAT_KERNEL
+ * @brief collect filesystem-capacity metadata for an open VFS file descriptor
+ * @details @b #include <sys/statfs.h> \n
+ * SYSTEM CALL API \n
+ * The current implementation accepts only file-table descriptors. Mountpoint
+ * inodes use the mountpoint `statfs` hook; pseudo-filesystem inodes use a
+ * synthesized pseudo-filesystem result instead. Calls can also fail before
+ * lookup succeeds when the current thread has no VFS file table. \n
+ * @since TizenRT v1.0
+ */
 EXTERN int fstatfs(int fd, struct statfs *buf);
 
 #undef EXTERN

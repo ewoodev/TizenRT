@@ -59,6 +59,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <time.h>
+#include <errno.h>
 #include <assert.h>
 #include <debug.h>
 #include <sched.h>
@@ -98,19 +99,20 @@
  * Name: sigprocmask
  *
  * Description:
- *   This function allows the calling process to examine and/or change its
- *   signal mask.  If the 'set' is not NULL, then it points to a set of
- *   signals to be used to change the currently blocked set.  The value of
- *   'how' indicates the manner in which the set is changed.
+ *   Examine and/or change the blocked-signal mask of the calling task.
+ *   If the 'set' pointer is not NULL, it references the mask data used to
+ *   update the current task's sigprocmask.  The value of 'how' selects how
+ *   that update is applied.
  *
- *   If there any pending unblocked signals after the call to sigprocmask(),
+ *   If there are pending signals that become unblocked after the call to
+ *   sigprocmask(),
  *   those signals will be delivered before sigprocmask() returns.
  *
  *   If sigprocmask() fails, the signal mask of the process is not changed
  *   by this function call.
  *
  * Parameters:
- *   how - How the signal mast will be changed:
+ *   how - How the signal mask will be changed when 'set' is not NULL:
  *         SIG_BLOCK   - The resulting set is the union of the current set
  *                       and the signal set pointed to by 'set'.
  *         SIG_UNBLOCK - The resulting set is the intersection of the current
@@ -122,7 +124,9 @@
  *   oset - Location to store the old signal mask
  *
  * Return Value:
- *   0 (OK), or -1 (ERROR) if how is invalid.
+ *   0 (OK) on success; -1 (ERROR) on failure with errno set.
+ *
+ *   EINVAL: 'how' is invalid while 'set' is non-NULL.
  *
  * Assumptions:
  *
@@ -179,6 +183,7 @@ int sigprocmask(int how, FAR const sigset_t *set, FAR sigset_t *oset)
 			break;
 
 		default:
+			set_errno(EINVAL);
 			ret = ERROR;
 			break;
 		}
@@ -187,7 +192,9 @@ int sigprocmask(int how, FAR const sigset_t *set, FAR sigset_t *oset)
 
 		/* Now, process any pending signals that were just unmasked */
 
-		sig_unmaskpendingsignal();
+		if (ret == OK) {
+			sig_unmaskpendingsignal();
+		}
 	}
 
 	sched_unlock();

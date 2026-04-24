@@ -75,42 +75,21 @@ static ssize_t comp_write(FAR struct file *filep, FAR const char *buffer, size_t
 /************************************************************************************
  * Name: comp_ioctl
  *
- * Command description:
- * 	 COMPIOC_COMPRESS - for compression of input data
- * 	 COMPIOC_DECOMPRESS - for decompression of input data
- * 	 COMPIOC_GET_COMP_TYPE - for getting compression type
- * 	 COMPIOC_GET_COMP_NAME - for getting compression type in string
- * 	 COMPIOC_FCOMP_INIT - for init the decompression framework in kernel
- * 	 COMPIOC_FCOMP_GET_BUFSIZE - for getting the buffer size require to hold decompressed data
- * 	 COMPIOC_FCOMP_DECOMPRESS - for getting decompressed data in buffer
- * 	 COMPIOC_FCOMP_DEINIT - for cleaning the kernel decompression framework
- * 
- * 	 App shall use the ioctls as follows to perform the decompression.
- * 
- * 	 Call COMPIOC_FCOMP_INIT and pass file path of compressed file.
- * 	 If error, goto errout, else continue to next step.
- * 	 Call COMPIOC_FCOMP_GET_BUFSIZE to get size of decompressed data.
- * 	 If error, goto errout, else continue to next step.
- * 	 Allocate buffer of required size as returned by COMPIOC_FCOMP_GET_BUFSIZE.
- * 	 Call COMPIOC_FCOMP_DECOMPRESS and pass the buffer.
- * 	 If no error, then decompressed data will be in buffer.
- * 	 Call COMPIOC_FCOMP_DEINIT to free up the resources
- * 	 errout:
- * 	 Call COMPIOC_FCOMP_DEINIT.
- * 	 If each of the above steps is successful,
- * 	 the decompressed data will be stored in the buffer provided by the app at decompress ioctl.
- * 	 However, if there is an error at any step, then app needs to call deinit ioctl.
- * 	 It is MANDATORY to call COMPIOC_FCOMP_DEINIT always.
- * 
- * Arguments:
- * 	 filep is ioctl fd, cmd is required command, arg is required argument for
- * 	 the command. For compression and decompression, arg is a struct compress_header .
- *	 For getting compression_type, arg is NULL.
- *	 For getting compression_name, arg is a char pointer
- *
  * Description:
- *   This api can be used to perform comrpession, decompression,
- *   get compression type and name. Please go through README for more details.
+ *   Handles the `/dev/compress` ioctl interface.
+ *
+ *   Supported commands:
+ *   - COMPIOC_COMPRESS / COMPIOC_DECOMPRESS:
+ *     operate on a caller-provided `struct compress_header`.
+ *   - COMPIOC_GET_COMP_TYPE / COMPIOC_GET_COMP_NAME:
+ *     report the backend selected by `CONFIG_COMPRESSION_TYPE`.
+ *   - COMPIOC_FCOMP_INIT / COMPIOC_FCOMP_GET_BUFSIZE /
+ *     COMPIOC_FCOMP_DECOMPRESS / COMPIOC_FCOMP_DEINIT:
+ *     expose the single-session compressed-file decompression flow built on
+ *     top of `compress_init()`, `compress_read()`, and `compress_uninit()`.
+ *
+ *   The file-decompression sequence is stateful and must be closed with
+ *   COMPIOC_FCOMP_DEINIT even on error.
  *
  ************************************************************************************/
 static int comp_ioctl(FAR struct file *filep, int cmd, unsigned long arg)

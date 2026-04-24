@@ -16,7 +16,7 @@
  *
  ****************************************************************************/
 /****************************************************************************
- * configs/boardctl.c
+ * os/arch/boardctl.c
  *
  *   Copyright (C) 2015-2016 Gregory Nutt. All rights reserved.
  *   Author: Gregory Nutt <gnutt@nuttx.org>
@@ -83,11 +83,11 @@
  *   calls.  This, however, may not be practical in many cases and will lead
  *   to "correct" but awkward implementations.
  *
- *   boardctl() is non-standard OS interface to alleviate the problem.  It
- *   basically circumvents the normal device driver ioctl interlace and allows
- *   the application to perform direction IOCTL-like calls to the board-specific
- *   logic.  In it is especially useful for setting up board operational and
- *   test configurations.
+ *   boardctl() is a non-standard OS interface that avoids having to expose
+ *   every board-management hook through a character driver. The current
+ *   implementation handles a fixed set of built-in commands and converts
+ *   board-specific negative return codes into errno values before returning
+ *   ERROR to the caller.
  *
  * Input Parameters:
  *   cmd - Identifies the board command to be executed
@@ -107,19 +107,11 @@ int boardctl(unsigned int cmd, uintptr_t arg)
 	/*
 	 * CMD:           BOARDIOC_INIT
 	 * DESCRIPTION:   Perform one-time application initialization.
-	 * ARG:           The boardctl() argument is passed to the
-	 *                board_app_initialize() implementation without modification.
-	 *                The argument has no meaning to NuttX; the meaning of the
-	 *                argument is a contract between the board-specific
-	 *                initalization logic and the matching application logic.
-	 *                The value cold be such things as a mode enumeration value,
-	 *                a set of DIP switch switch settings, a pointer to
-	 *                configuration data read from a file or serial FLASH, or
-	 *                whatever you would like to do with it.  Every
-	 *                implementation should accept zero/NULL as a default
-	 *                configuration.
+	 * ARG:           The current implementation ignores this argument for
+	 *                BOARDIOC_INIT and simply calls board_app_initialize()
+	 *                with no parameters.
 	 * CONFIGURATION: CONFIG_LIB_BOARDCTL
-	 * DEPENDENCIES:  Board logic must provide board_app_initialization
+	 * DEPENDENCIES:  Board logic must provide board_app_initialize()
 	 */
 	case BOARDIOC_INIT:
 		ret = board_app_initialize();
@@ -147,7 +139,7 @@ int boardctl(unsigned int cmd, uintptr_t arg)
 	 * DEPENDENCIES:  Board logic must provide board_reset
 	 */
 	case BOARDIOC_RESET:
-		/* To reboot the board, we will do nothing. */
+		/* Serialize reset handling and leave time for pending logs to drain. */
 		sched_lock();
 		/* Add 100ms delay for flushing another logs like printf. */
 		up_mdelay(100);

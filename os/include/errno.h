@@ -436,38 +436,49 @@ extern "C" {
 #define EXTERN extern
 #endif
 
-/* Return a pointer to the thread specific errno.  NOTE:  When doing a
- * kernel-/user-mode build, this function can only be used within the
- * kernel-mode space.
- *
- * In the user-mode space, set_errno() and get_errno() are always available,
- * either as macros or via syscalls.
+/* get_errno_ptr() is the low-level accessor behind the function-backed errno
+ * path.  In separated user/kernel builds, it is only meaningful in kernel-side
+ * code because it returns a writable storage pointer instead of copying the
+ * current value.  User-mode code should use errno, set_errno(), or
+ * get_errno() instead.
  */
 
 /**
- * @brief Return a pointer to the thread specific errno.
+ * @brief Return the active errno storage for the current execution context.
  * @details @b #include <errno.h>
- * @return A pointer to the per-thread errno variable is returned.
+ * In normal task context, this function returns the address of the running
+ * task's `pterrno` field. In interrupt context, during early initialization,
+ * or while no task is in the running state, it falls back to a shared kernel
+ * errno slot instead of touching a task control block. `set_errno()` and
+ * `get_errno()` are thin accessors layered on top of this pointer selection.
+ * @return A writable pointer to the errno storage selected for the current context.
  * @since TizenRT v1.0
  */
 FAR int *get_errno_ptr(void);
 
 #ifndef __DIRECT_ERRNO_ACCESS
 /**
- * @brief Set the value of the thread specific errno.
+ * @brief Store a new errno value through `get_errno_ptr()`.
  * @details @b #include <errno.h> \n
  * SYSTEM CALL API
- * @param[in] errcode The thread specific errno will be set to this error code value.
+ * This function is declared only when direct errno access is not enabled. It
+ * writes the supplied value to the errno storage selected by
+ * `get_errno_ptr()`, so the target may be the running task's TCB field or the
+ * fallback kernel slot. The function does not validate or translate the value.
+ * @param[in] errcode Error code to store.
  * @return none
  * @since TizenRT v1.0
  */
 void set_errno(int errcode);
 
 /**
- * @brief Return the value of the thread specific errno.
+ * @brief Read the current errno value through `get_errno_ptr()`.
  * @details @b #include <errno.h> \n
  * SYSTEM CALL API
- * @return The current value of the thread specific errno is returned.
+ * This function is declared only when direct errno access is not enabled. It
+ * returns the value currently stored in the errno slot selected by
+ * `get_errno_ptr()` for the active execution context.
+ * @return The current errno value.
  * @since TizenRT v1.0
  */
 int get_errno(void);

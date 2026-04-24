@@ -76,14 +76,9 @@
  * Name: close
  *
  * Description:
- *   close() closes a file descriptor, so that it no longer refers to any
- *   file and may be reused. Any record locks (see fcntl(2)) held on the file
- *   it was associated with, and owned by the process, are removed (regardless
- *   of the file descriptor that was used to obtain the lock).
- *
- *   If fd is the last copy of a particular file descriptor the resources
- *   associated with it are freed; if the descriptor was the last reference
- *   to a file which has been removed using unlink(2) the file is deleted.
+ *   Close a file descriptor through files_close(), or redirect to the
+ *   socket close path when the descriptor falls in the configured socket
+ *   range.
  *
  * Parameters:
  *   fd   file descriptor to close

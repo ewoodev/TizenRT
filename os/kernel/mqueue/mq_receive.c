@@ -94,19 +94,17 @@
  * Name: mq_receive
  *
  * Description:
- *   This function receives the oldest of the highest priority messages
- *   from the message queue specified by "mqdes."  If the size of the
- *   buffer in bytes (msglen) is less than the "mq_msgsize" attribute of
- *   the message queue, mq_receive will return an error.  Otherwise, the
- *   selected message is removed from the queue and copied to "msg."
+ *   Receive the oldest queued message from the highest priority band of
+ *   the message queue identified by mqdes.  The call first validates the
+ *   descriptor, access mode, and user buffer size, then waits until a
+ *   message becomes available unless O_NONBLOCK is set in mqdes->oflags.
  *
- *   If the message queue is empty and O_NONBLOCK was not set,
- *   mq_receive() will block until a message is added to the message
- *   queue.  If more than one task is waiting to receive a message, only
- *   the task with the highest priority that has waited the longest will
- *   be unblocked.
+ *   When a message is obtained, mq_receive() removes it from the queue,
+ *   copies the payload into msg, optionally returns the message priority
+ *   through prio, and then wakes one sender that was waiting for the queue
+ *   to become non-full.
  *
- *   If the queue is empty and O_NONBLOCK is set, ERROR will be returned.
+ *   mq_receive() is a cancellation point.
  *
  * Parameters:
  *   mqdes - Message Queue Descriptor
@@ -115,7 +113,7 @@
  *   prio - If not NULL, the location to store message priority.
  *
  * Return Value:
- *   One success, the length of the selected message in bytes is returned.
+ *   On success, the length of the selected message in bytes is returned.
  *   On failure, -1 (ERROR) is returned and the errno is set appropriately:
  *
  *   EAGAIN   The queue was empty, and the O_NONBLOCK flag was set
@@ -124,7 +122,7 @@
  *   EMSGSIZE 'msglen' was less than the maxmsgsize attribute of the
  *            message queue.
  *   EINTR    The call was interrupted by a signal handler.
- *   EINVAL   Invalid 'msg' or 'mqdes'
+ *   EINVAL   Invalid msg pointer or descriptor pointer.
  *
  * Assumptions:
  *

@@ -71,16 +71,14 @@
 /****************************************************************************
  * Name: fstatfs
  *
- * Return: Zero on success; -1 on failure with errno set:
+ * Description:
+ *   Return filesystem-capacity metadata for an open VFS file descriptor.
+ *   Mountpoint descriptors use the mountpoint statfs() hook; pseudo-filesystem
+ *   descriptors synthesize a PROC_SUPER_MAGIC result directly. There is no
+ *   socket fallback.
  *
- *   EACCES  Search permission is denied for one of the directories in the
- *           path prefix of path.
- *   EFAULT  Bad address.
- *   ENOENT  A component of the path path does not exist, or the path is an
- *           empty string.
- *   ENOMEM  Out of memory
- *   ENOTDIR A component of the path is not a directory.
- *   ENOSYS  The file system does not support this call.
+ * Return:
+ *   OK on success, or ERROR on failure with errno set.
  *
  ****************************************************************************/
 
@@ -93,8 +91,8 @@ int fstatfs(int fd, FAR struct statfs *buf)
 	DEBUGASSERT(buf != NULL);
 
 	/* The descriptor is in a valid range to file descriptor... do the
-	 * read.  First, get the file structure.  Note that on failure,
-	 * fs_getfilep() will set the errno variable.
+	 * read. First, get the file structure. On failure, fs_getfilep()
+	 * returns a negated errno value that this wrapper maps into errno.
 	 */
 
 	ret = fs_getfilep(fd, &filep);

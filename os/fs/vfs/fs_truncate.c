@@ -76,9 +76,9 @@
  * Name: file_truncate
  *
  * Description:
- *   Equivalent to the standard ftruncate() function except that is accepts
- *   a struct file instance instead of a file descriptor and it does not set
- *   the errno variable.
+ *   File-only truncate helper. This helper accepts a struct file instance
+ *   instead of a file descriptor, requires write access, and delegates to
+ *   the mountpoint truncate operation without setting errno itself.
  *
  ****************************************************************************/
 
@@ -126,52 +126,18 @@ int file_truncate(FAR struct file *filep, off_t length)
  * Name: ftruncate
  *
  * Description:
- *   The ftruncate() function causes the regular file referenced by fd to
- *   have a size of length bytes.
- *
- *   If the file previously was larger than length, the extra data is
- *   discarded.  If it was previously shorter than length, it is unspecified
- *   whether the file is changed or its size increased.  If the file is
- *   extended, the extended area appears as if it were zero-filled.  If fd
- *   references a shared memory object, ftruncate() sets the size of the
- *   shared memory object to length. If the file is not a regular file or
- *   a shared memory object, the result is unspecified.
-
- *   With ftruncate(), the file must be open for writing; for truncate(),
- *   the process must have write permission for the file.
- *
- *   ftruncate() does not modify the file offset for any open file
- *   descriptions associated with the file.
+ *   Reject negative lengths, resolve the descriptor into a VFS file object,
+ *   then call file_truncate(). The current implementation is mountpoint-only:
+ *   it requires a descriptor opened for writing, a writable mountpoint, and
+ *   a mountpoint truncate method.
  *
  * Input Parameters:
- *   fd     - A reference to an open, regular file or shared memory object
- *            to be truncated.
- *   length - The new length of the file or shared memory object.
+ *   fd     - File descriptor to truncate
+ *   length - New length, which must be non-negative
  *
  * Returned Value:
- *    Upon successful completion, ftruncate() return 0s. Otherwise a -1 is
- *    returned, and errno is set to indicate the error.
- *
- *    EINTR
- *      - A signal was caught during execution.
- *    EINVAL
- *      - The length argument was less than 0.
- *    EFBIG or EINVAL
- *      - The length argument was greater than the maximum file size.
- *    EIO
- *      - An I/O error occurred while reading from or writing to a file
- *        system.
- *    EBADF or EINVAL
- *       - the fd argument is not a file descriptor open for writing.
- *    EFBIG
- *       - The file is a regular file and length is greater than the offset
- *         maximum established in the open file description associated with
- *         fd.
- *    EINVAL
- *       - The fd argument references a file that was opened without write
- *         permission.
- *    EROFS
- *       - The named file resides on a read-only file system.
+ *   0 on success; ERROR on failure with errno set from fs_getfilep() or
+ *   file_truncate().
  *
  ****************************************************************************/
 

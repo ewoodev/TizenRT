@@ -113,7 +113,9 @@ extern bool abort_mode;
  *   If this function returns -1 (ERROR), then the cause of the failure will
  *   be reported in 'errno' as:
  *   - EINVAL:  Invalid attempt to get the semaphore
+ *   - ECANCELED: A pending deferred cancellation was acted on before blocking
  *   - EINTR:   The wait was interrupted by the receipt of a signal.
+ *   - ETIMEDOUT: A timed wait wrapper canceled the blocked wait on timeout.
  *
  * Assumptions:
  *

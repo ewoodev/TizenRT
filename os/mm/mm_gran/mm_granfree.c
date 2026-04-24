@@ -72,11 +72,13 @@
  * Name: gran_common_free
  *
  * Description:
- *   Return memory to the granule heap.
+ *   Return one region to the granule heap.
  *
  * Input Parameters:
- *   handle - The handle previously returned by gran_initialize
- *   memory - A pointer to memory previoiusly allocated by gran_alloc.
+ *   priv   - The granule heap state structure.
+ *   memory - A pointer previously returned by gran_alloc() or the start of a
+ *            region reserved with gran_reserve().
+ *   size   - Size of the allocation or reserved span being released.
  *
  * Returned Value:
  *   None
@@ -158,11 +160,16 @@ static inline void gran_common_free(FAR struct gran_s *priv, FAR void *memory, s
  * Name: gran_free
  *
  * Description:
- *   Return memory to the granule heap.
+ *   Return one region to the granule heap.  The caller must provide the same
+ *   start address and allocation size contract used when the region was
+ *   obtained or reserved.
  *
  * Input Parameters:
- *   handle - The handle previously returned by gran_initialize
- *   memory - A pointer to memory previoiusly allocated by gran_alloc.
+ *   If CONFIG_GRAN_SINGLE=y, no handle is required.
+ *   Otherwise, handle is the value previously returned by gran_initialize().
+ *   memory - A pointer previously returned by gran_alloc() or the start of a
+ *            region reserved with gran_reserve().
+ *   size   - Size of the allocation or reserved span being released.
  *
  * Returned Value:
  *   None

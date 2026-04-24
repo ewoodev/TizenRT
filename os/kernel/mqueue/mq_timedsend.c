@@ -147,22 +147,22 @@ static void mq_sndtimeout(int argc, uint32_t pid)
  ****************************************************************************/
 
 /****************************************************************************
- * Name: mq_send
+ * Name: mq_timedsend
  *
  * Description:
- *   This function adds the specificied message (msg) to the message queue
- *   (mqdes).  The "msglen" parameter specifies the length of the message
- *   in bytes pointed to by "msg."  This length must not exceed the maximum
- *   message length from the mq_getattr().
+ *   This function adds the specified message to the message queue
+ *   referenced by mqdes.  The "msglen" parameter specifies the length of
+ *   the message in bytes pointed to by "msg."  This length must not exceed
+ *   the queue's mq_msgsize attribute.
  *
- *   If the message queue is not full, mq_timedsend() place the message in the
- *   message queue at the position indicated by the "prio" argrument.
- *   Messages with higher priority will be inserted before lower priority
- *   messages.  The value of "prio" must not exceed MQ_PRIO_MAX.
+ *   If the message queue is not full, mq_timedsend() copies the payload into
+ *   an internal message object and inserts it in descending priority order.
+ *   Messages with the same priority stay in FIFO order.  The value of
+ *   "prio" must not exceed MQ_PRIO_MAX.
  *
  *   If the specified message queue is full and O_NONBLOCK is not set in the
- *   message queue, then mq_timedsend() will block until space becomes available
- *   to the queue the message or a timeout occurs.
+ *   descriptor, mq_timedsend() will block until space becomes available or
+ *   the timeout expires.
  *
  *   mq_timedsend() behaves just like mq_send(), except that if the queue
  *   is full and the O_NONBLOCK flag is not enabled for the message queue
@@ -171,31 +171,36 @@ static void mq_sndtimeout(int argc, uint32_t pid)
  *   absolute timeout in seconds and nanoseconds since the Epoch (midnight
  *   on the morning of 1 January 1970).
  *
- *   If the message queue is full, and the timeout has already expired by
- *   the time of the call, mq_timedsend() returns immediately.
+ *   If the message queue is full and the timeout has already expired by
+ *   the time of the call, mq_timedsend() returns immediately with
+ *   ETIMEDOUT.  This implementation also reserves the wait watchdog before
+ *   checking whether the queue is already full.
  *
  * Parameters:
  *   mqdes - Message queue descriptor
  *   msg - Message to send
  *   msglen - The length of the message in bytes
  *   prio - The priority of the message
- *   abstime - the absolute time to wait until a timeout is decleared
+ *   abstime - The absolute time limit for the blocking wait
  *
  * Return Value:
- *   On success, mq_send() returns 0 (OK); on error, -1 (ERROR)
+ *   On success, mq_timedsend() returns 0 (OK); on error, -1 (ERROR)
  *   is returned, with errno set to indicate the error:
  *
- *   EAGAIN   The queue was empty, and the O_NONBLOCK flag was set for the
- *            message queue description referred to by mqdes.
- *   EINVAL   Either msg or mqdes is NULL or the value of prio is invalid.
- *   EPERM    Message queue opened not opened for writing.
- *   EMSGSIZE 'msglen' was greater than the maxmsgsize attribute of the
- *            message queue.
+ *   EAGAIN   The queue was full, and the O_NONBLOCK flag was set for the
+ *            message queue descriptor referred to by mqdes.
+ *   EINVAL   Either msg, mqdes, or abstime is invalid, or the value of
+ *            prio is invalid.
+ *   EPERM    Message queue not opened for writing.
+ *   EMSGSIZE 'msglen' was greater than the max message size attribute of
+ *            the queue.
  *   EINTR    The call was interrupted by a signal handler.
- *   ENOMEM   The system lacks sufficient memory resources for watchdog.
- *   EBUSY    Fail to get the msg from interrupt handler.
+ *   ECANCELED A pending task cancellation was observed before the wait.
+ *   ETIMEDOUT The absolute timeout expired before the queue became non-full.
+ *   ENOMEM   The system lacked memory for the wait watchdog or message.
  *
  * Assumptions/restrictions:
+ * - Must not be called from interrupt context.
  *
  ****************************************************************************/
 
@@ -244,8 +249,8 @@ int mq_timedsend(mqd_t mqdes, FAR const char *msg, size_t msglen, int prio, FAR 
 	}
 
 	/* Allocate a message structure:
-	 * - If we are called from an interrupt handler, or
-	 * - If the message queue is not full, or
+	 * - Immediately if the message queue is not full, or
+	 * - After a successful timed wait for the queue to become non-full.
 	 */
 
 	sched_lock();
@@ -259,8 +264,8 @@ int mq_timedsend(mqd_t mqdes, FAR const char *msg, size_t msglen, int prio, FAR 
 	} else {
 		int ticks;
 
-		/* We are not in an interupt handler and the message queue is full.
-		 * set up a timed wait for the message queue to become non-full.
+		/* The message queue is full.  Set up a timed wait for it to become
+		 * non-full.
 		 *
 		 * Convert the timespec to clock ticks.  We must have interrupts
 		 * disabled here so that this time stays valid until the wait begins.
@@ -268,7 +273,8 @@ int mq_timedsend(mqd_t mqdes, FAR const char *msg, size_t msglen, int prio, FAR 
 
 		int result = clock_abstime2ticks(CLOCK_REALTIME, abstime, &ticks);
 
-		/* If the time has already expired and the message queue is empty,
+		/* If the time has already expired and the message queue is still
+		 * full,
 		 * return immediately.
 		 */
 
@@ -290,7 +296,7 @@ int mq_timedsend(mqd_t mqdes, FAR const char *msg, size_t msglen, int prio, FAR 
 
 			wd_start(rtcb->waitdog, ticks, (wdentry_t)mq_sndtimeout, 1, getpid());
 
-			/* And wait for the message queue to be non-empty */
+			/* And wait for the message queue to become non-full. */
 
 			ret = mq_waitsend(mqdes);
 
@@ -305,8 +311,8 @@ int mq_timedsend(mqd_t mqdes, FAR const char *msg, size_t msglen, int prio, FAR 
 
 		leave_critical_section(saved_state);
 
-		/* If any of the above failed, set the errno.  Otherwise, there should
-		 * be space for another message in the message queue.  NOW we can allocate
+		/* If any of the above failed, errno is already set.  Otherwise, there
+		 * should be space for another message in the queue and we can allocate
 		 * the message structure.
 		 */
 
@@ -321,7 +327,7 @@ int mq_timedsend(mqd_t mqdes, FAR const char *msg, size_t msglen, int prio, FAR 
 	 */
 
 	if (mqmsg) {
-		/* Yes, peform the message send. */
+		/* Yes, perform the message send. */
 
 		ret = mq_dosend(mqdes, mqmsg, msg, msglen, prio);
 	}

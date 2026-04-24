@@ -105,7 +105,10 @@
 /****************************************************************************
  * Name: mkdir
  *
- * Description:  Create a directory
+ * Description:
+ *   Create a directory through either a writable mountpoint mkdir() hook or,
+ *   when pseudo-filesystem operations are enabled, by reserving a new inode
+ *   directly in the pseudo-filesystem tree.
  *
  ****************************************************************************/
 

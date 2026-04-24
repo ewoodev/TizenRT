@@ -94,11 +94,11 @@ ssize_t file_pwrite(FAR struct file *filep, FAR const void *buf, size_t nbytes, 
 		return (ssize_t)savepos;
 	}
 
-	/* Then seek to the correct position in the file */
+	/* Then seek to the requested position in the file */
 
 	pos = file_seek(filep, offset, SEEK_SET);
 	if (pos < 0) {
-		/* This might fail is the offset is beyond the end of file */
+		/* This fails when file_seek() rejects the target position */
 
 		return (ssize_t)pos;
 	}
@@ -123,11 +123,10 @@ ssize_t file_pwrite(FAR struct file *filep, FAR const void *buf, size_t nbytes, 
  * Name: pwrite
  *
  * Description:
- *   The pwrite() function performs the same action as write(), except that
- *   it writes into a given position without changing the file pointer. The
- *   first three arguments to pwrite() are the same as write() with the
- *   addition of a fourth argument offset for the desired position inside
- *   the file.
+ *   Save the current file position with file_seek(), seek to offset,
+ *   perform the write, then attempt to restore the saved position. The
+ *   descriptor therefore has to support the VFS seek path, and a restore
+ *   failure can still leave the file position changed.
  *
  *   NOTE: This function could have been wholly implemented within libc but
  *   it is not.  Why?  Because if pwrite were implemented in libc, it would
@@ -135,14 +134,17 @@ ssize_t file_pwrite(FAR struct file *filep, FAR const void *buf, size_t nbytes, 
  *   only three.
  *
  * Input Parameters:
- *   fd       file descriptor (or socket descriptor) to write to
+ *   fd       File descriptor
  *   buf      Data to write
  *   nbytes   Length of data to write
+ *   offset   The file offset to use for the temporary write
  *
  * Returned Value:
- *   The positive non-zero number of bytes read on success, 0 on if an
- *   end-of-file condition, or -1 on failure with errno set appropriately.
- *   See write() return values
+ *   The positive non-zero number of bytes written on success, 0 if nothing
+ *   was written, or ERROR on failure. Seek-helper failures are returned
+ *   through the current wrapper's errno remapping path. A restore failure
+ *   after a successful write still turns the public result into ERROR and
+ *   can leave the file position changed.
  *
  * Assumptions/Limitations:
  *   POSIX requires that opening a file with the O_APPEND flag should have no
@@ -157,7 +159,7 @@ ssize_t pwrite(int fd, FAR const void *buf, size_t nbytes, off_t offset)
 	FAR struct file *filep;
 	ssize_t ret;
 
-	/* pread() is a cancellation point */
+	/* pwrite() is a cancellation point */
 
 	enter_cancellation_point();
 

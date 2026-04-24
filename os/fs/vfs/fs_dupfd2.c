@@ -82,10 +82,15 @@
  * Name: fs_dupfd2 OR dup2
  *
  * Description:
- *   Clone a file descriptor to a specific descriptor number. If socket
+ *   Clone a file descriptor onto a specific descriptor number. If socket
  *   descriptors are implemented, then this is called by dup2() for the
- *   case of file descriptors.  If socket descriptors are not implemented,
- *   then this function IS dup2().
+ *   file-descriptor path. If socket descriptors are not implemented, then
+ *   this function IS dup2().
+ *
+ *   The current wrapper preserves the `fd1 == fd2` fast path, but otherwise
+ *   returns OK on successful replacement instead of normalizing the result to
+ *   `fd2`. Helper-side ERROR returns can also lose their original errno
+ *   detail when remapped here.
  *
  ****************************************************************************/
 

@@ -132,8 +132,8 @@ FAR sigactq_t *sig_allocateaction(void)
  * Name: sigaction
  *
  * Description:
- *   This function allows the calling process to examine and/or specify the
- *   action to be associated with a specific signal.
+ *   Examine and/or replace the action associated with one signal in the
+ *   calling task.
  *
  *   The structure sigaction, used to describe an action to be taken, is
  *   defined to include the following members:
@@ -147,7 +147,11 @@ FAR sigactq_t *sig_allocateaction(void)
  *   If the argument 'act' is not NULL, it points to a structure specifying
  *   the action to be associated with the specified signal.  If the argument
  *   'oact' is not NULL, the action previously associated with the signal
- *   is stored in the location pointed to by the argument 'oact.'
+ *   is stored in the location pointed to by the argument 'oact.'  In the
+ *   current owner implementation, ordinary signals are stored in the
+ *   calling task's sigaction queue.  When CONFIG_SIGKILL_HANDLER is
+ *   enabled, SIGKILL instead uses the dedicated sigkillusrhandler slot in
+ *   the TCB.
  *
  *   When a signal is caught by a signal-catching function installed by
  *   sigaction() function, a new signal mask is calculated and installed for
@@ -161,13 +165,15 @@ FAR sigactq_t *sig_allocateaction(void)
  *   until another action is explicitly requested by another call to sigaction().
  *
  * Parameters:
- *   sig - Signal of interest
- *   act - Location of new handler
- *   oact - Location to store only handler
+ *   signo - Signal of interest
+ *   act   - Location of the new action, or NULL to query only
+ *   oact  - Location to store the previous action, if any
  *
  * Return Value:
- *   0 (OK), or -1 (ERROR) if the signal number is invalid.
- *   (errno is not set)
+ *   0 (OK) on success; -1 (ERROR) on failure with errno set.
+ *
+ *   EINVAL: The signal number is invalid.
+ *   ENOMEM: A new sigaction container was needed but could not be allocated.
  *
  * Assumptions:
  *
@@ -175,8 +181,9 @@ FAR sigactq_t *sig_allocateaction(void)
  * - There are no default actions so the special value SIG_DFL is treated
  *   like SIG_IGN.
  * - All sa_flags in struct sigaction of act input are ignored (all
- *   treated like SA_SIGINFO). The one exception is if CONFIG_SCHED_CHILDSTATUS
- *   is defined; then SA_NOCLDWAIT is supported but only for SIGCHLD
+ *   treated like SA_SIGINFO). The one exception is when both
+ *   CONFIG_SCHED_HAVE_PARENT and CONFIG_SCHED_CHILD_STATUS are defined;
+ *   then SA_NOCLDWAIT is supported but only for SIGCHLD
  *
  ****************************************************************************/
 
@@ -198,6 +205,16 @@ int sigaction(int signo, FAR const struct sigaction *act, FAR struct sigaction *
 
 #ifdef CONFIG_SIGKILL_HANDLER
 	if (signo == SIGKILL) {
+		if (oact) {
+			oact->sa_sigaction = rtcb->sigkillusrhandler;
+			oact->sa_mask = NULL_SIGNAL_SET;
+			oact->sa_flags = 0;
+		}
+
+		if (!act) {
+			return OK;
+		}
+
 		rtcb->sigkillusrhandler = act->sa_sigaction;
 		return OK;
 	}

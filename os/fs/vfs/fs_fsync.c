@@ -93,9 +93,9 @@
  * Name: file_fsync
  *
  * Description:
- *   Equivalent to the standard fsync() function except that is accepts a
- *   struct file instance instead of a file descriptor.  Currently used
- *   only by aio_fsync();
+ *   File-only fsync helper. This helper accepts a struct file instance
+ *   instead of a file descriptor and requires write access plus a
+ *   mountpoint inode that provides sync().
  *
  ****************************************************************************/
 
@@ -140,7 +140,9 @@ errout:
  * Name: fsync
  *
  * Description:
- *   This func simply binds inode sync methods to the sync system call.
+ *   Resolve a file descriptor, then call file_fsync(). The current
+ *   implementation only succeeds for writable mountpoint-backed files whose
+ *   operations table provides sync().
  *
  ****************************************************************************/
 

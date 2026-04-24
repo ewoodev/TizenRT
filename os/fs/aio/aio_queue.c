@@ -91,11 +91,11 @@
  * Name: aio_queue
  *
  * Description:
- *   Schedule the asynchronous I/O on the low priority work queue
+ *   Schedule asynchronous I/O on the low-priority work queue.
  *
  * Input Parameters:
- *   arg - Worker argument.  In this case, a pointer to an instance of
- *     struct aiocb cast to void *.
+ *   aioc   - Prepared AIO container describing the request.
+ *   worker - Worker entry point that will execute the synchronous I/O.
  *
  * Returned Value:
  *   Zero (OK) on success.  Otherwise, -1 is returned and the errno is set
@@ -106,6 +106,9 @@
 int aio_queue(FAR struct aio_container_s *aioc, worker_t worker)
 {
 	int ret;
+#ifdef CONFIG_PRIORITY_INHERITANCE
+	uint8_t prio = aioc->aioc_prio;
+#endif
 
 #ifdef CONFIG_PRIORITY_INHERITANCE
 	/* Prohibit context switches until we complete the queuing */
@@ -123,11 +126,14 @@ int aio_queue(FAR struct aio_container_s *aioc, worker_t worker)
 
 	ret = work_queue(LPWORK, &aioc->aioc_work, worker, aioc, 0);
 	if (ret < 0) {
-		FAR struct aiocb *aiocbp = aioc->aioc_aiocbp;
+		FAR struct aiocb *aiocbp = aioc_decant(aioc);
 		DEBUGASSERT(aiocbp);
 
 		aiocbp->aio_result = ret;
 		set_errno(-ret);
+#ifdef CONFIG_PRIORITY_INHERITANCE
+		lpwork_restorepriority(prio);
+#endif
 		ret = ERROR;
 	}
 #ifdef CONFIG_PRIORITY_INHERITANCE

@@ -84,9 +84,10 @@
  * Name: file_vfcntl
  *
  * Description:
- *   Similar to the standard vfcntl function except that is accepts a struct
- *   struct file instance instead of a file descriptor.  Currently used
- *   only by aio_fcntl();
+ *   File-only helper for the current fcntl() subset. This helper accepts a
+ *   struct file instance instead of a file descriptor and directly handles
+ *   F_DUPFD, F_GETFL, and F_SETFL. Other commands are either rejected or
+ *   reported as unsupported here.
  *
  ****************************************************************************/
 

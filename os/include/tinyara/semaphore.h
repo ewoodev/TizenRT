@@ -113,17 +113,16 @@ extern "C" {
  * Name: sem_tickwait
  *
  * Description:
- *   This function is a lighter weight version of sem_timedwait().  It is
- *   non-standard and intended only for use within the RTOS.
+ *   This function is a lighter weight, RTOS-specific timeout wait helper.
+ *   It first performs a non-blocking `sem_trywait()`, then waits for at most
+ *   `delay` ticks after compensating for time already elapsed since `start`.
  *
  * Parameters:
  *   sem     - Semaphore object
- *   start   - The system time that the delay is relative to.  If the
- *             current time is not the same as the start time, then the
- *             delay will be adjust so that the end time will be the same
- *             in any event.
- *   delay   - Ticks to wait from the start time until the semaphore is
- *             posted.  If ticks is zero, then this function is equivalent
+ *   start   - Base system tick used to compensate for time already elapsed
+ *             before the wait begins.
+ *   delay   - Ticks to wait from `start` until the semaphore is posted.  If
+ *             `delay` is zero, then this function is equivalent
  *             to sem_trywait().
  *
  * Return Value:
@@ -131,8 +130,12 @@ extern "C" {
  *   On failure, -1 (ERROR) is returned and the errno
  *   is set appropriately:
  *
- *   ETIMEDOUT The semaphore could not be locked before the specified timeout
- *             (delay) expired.
+ *   EINVAL    Invalid semaphore state propagated from `sem_trywait()` or
+ *             `sem_wait()`.
+ *   EAGAIN    No count was available when `delay` was zero.
+ *   ECANCELED The wait was canceled while blocked in `sem_wait()`.
+ *   ETIMEDOUT The semaphore could not be locked before the adjusted timeout
+ *             expired.
  *   ENOMEM    Out of memory
  *
  ****************************************************************************/
@@ -143,15 +146,16 @@ int sem_tickwait(FAR sem_t *sem, clock_t start, uint32_t delay);
  * Name: sem_reset
  *
  * Description:
- *   Reset a semaphore to a specific value.  This kind of operation is
- *   sometimes required for certain error handling conditions.
+ *   Reset a semaphore to a specific non-negative count.  If threads are
+ *   already waiting, the implementation hands counts to waiters first by
+ *   calling `sem_post()` before storing any remaining count.
  *
  * Parameters:
  *   sem   - Semaphore descriptor to be reset
  *   count - The requested semaphore count
  *
  * Return Value:
- *   0 (OK) or a negated errno value if unsuccessful
+ *   0 (OK) on success. Otherwise, -1 (ERROR) is returned and errno is set.
  *
  ****************************************************************************/
 
@@ -161,7 +165,11 @@ int sem_reset(FAR sem_t *sem, int16_t count);
  * Function: sem_getprotocol
  *
  * Description:
- *    Return the value of the semaphore protocol attribute.
+ *    Return the current semaphore protocol mode.
+ *
+ *    When priority inheritance support is disabled globally, this function
+ *    always reports `SEM_PRIO_NONE`. Otherwise it reports whether priority
+ *    inheritance is enabled for the specific semaphore instance.
  *
  * Parameters:
  *    sem      - A pointer to the semaphore whose attributes are to be
@@ -181,26 +189,14 @@ int sem_getprotocol(FAR sem_t *sem, FAR int *protocol);
  * Function: sem_setprotocol
  *
  * Description:
- *    Set semaphore protocol attribute.
+ *    Set the semaphore protocol mode.
  *
- *    One particularly important use of this function is when a semaphore
- *    is used for inter-task communication like:
+ *    `SEM_PRIO_NONE` disables priority inheritance for the semaphore.
+ *    `SEM_PRIO_INHERIT` re-enables priority inheritance when that kernel
+ *    feature is built. `SEM_PRIO_PROTECT` is not supported.
  *
- *      TASK A                 TASK B
- *      sem_init(sem, 0, 0);
- *      sem_wait(sem);
- *                             sem_post(sem);
- *      Awakens as holder
- *
- *    In this case priority inheritance can interfere with the operation of
- *    the semaphore.  The problem is that when TASK A is restarted it is a
- *    holder of the semaphore.  However, it never calls sem_post(sem) so it
- *    becomes *permanently* a holder of the semaphore and may have its
- *    priority boosted when any other task tries to acquire the semaphore.
- *
- *    The fix is to call sem_setprotocol(SEM_PRIO_NONE) immediately after
- *    the sem_init() call so that there will be no priority inheritance
- *    operations on this semaphore.
+ *    When priority inheritance support is disabled globally, only
+ *    `SEM_PRIO_NONE` succeeds.
  *
  * Parameters:
  *    sem      - A pointer to the semaphore whose attributes are to be
@@ -220,7 +216,7 @@ int sem_setprotocol(FAR sem_t *sem, int protocol);
  * Name: sem_register
  *
  * Description:
- *   Register semaphore to a list of kernel semaphores.
+ *   Register a kernel semaphore in the binary-manager recovery list.
  *
  * Parameters:
  *   sem - Semaphore descriptor
@@ -238,7 +234,7 @@ void sem_register(FAR sem_t *sem);
  * Name: sem_unregister
  *
  * Description:
- *   Unegister semaphore from a list of kernel semaphores.
+ *   Unregister a kernel semaphore from the binary-manager recovery list.
  *
  * Parameters:
  *   sem - Semaphore descriptor

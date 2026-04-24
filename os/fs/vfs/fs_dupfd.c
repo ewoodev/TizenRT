@@ -82,11 +82,14 @@
  * Name: fs_dupfd OR dup
  *
  * Description:
- *   Clone a file descriptor 'fd' to an arbitray descriptor number (any value
- *   greater than or equal to 'minfd'). If socket descriptors are
- *   implemented, then this is called by dup() for the case of file
- *   descriptors.  If socket descriptors are not implemented, then this
- *   function IS dup().
+ *   Clone a file descriptor `fd` to the lowest available file descriptor
+ *   greater than or equal to `minfd`. If socket descriptors are implemented,
+ *   then this is called by dup() for file descriptors. If socket descriptors
+ *   are not implemented, then this function IS dup().
+ *
+ *   The wrapper assumes helper failures are returned as negated errno
+ *   values. If file_dup() returns plain ERROR after setting errno, this
+ *   wrapper can overwrite the original errno with `1`.
  *
  ****************************************************************************/
 

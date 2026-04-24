@@ -135,16 +135,20 @@ ssize_t file_read(FAR struct file *filep, FAR void *buf, size_t nbytes)
  * Name: read
  *
  * Description:
- *   The standard, POSIX read interface.
+ *   Read from a VFS file descriptor or, when networking is enabled, route
+ *   out-of-range descriptors to recv(..., 0). The current implementation
+ *   also has an early fs_getfilep() failure path that returns the negative
+ *   helper result directly.
  *
  * Parameters:
- *   file     File structure instance
+ *   fd       File descriptor or configured socket descriptor
  *   buf      User-provided to save the data
  *   nbytes   The maximum size of the user-provided buffer
  *
  * Return:
- *   The positive non-zero number of bytes read on success, 0 on if an
- *   end-of-file condition, or -1 on failure with errno set appropriately.
+ *   The positive non-zero number of bytes read on success, 0 on end-of-file,
+ *   or ERROR on most failures after errno is set. Some early helper failures
+ *   are returned directly as negative values by the current wrapper.
  *
  ****************************************************************************/
 

@@ -134,16 +134,20 @@ extern "C" {
  * @brief close a directory stream
  * @details @b #include <dirent.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * Releases a directory stream previously returned by `opendir()`. The
+ * implementation frees the stream object and releases any inode references it
+ * holds. \n
  * @since TizenRT v1.0
  */
 int closedir(FAR DIR *dirp);
 /**
  * @ingroup DIRENT_KERNEL
- * @brief open directory associated with file descriptor
+ * @brief open a directory stream for a filesystem path
  * @details @b #include <dirent.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * Opens a directory stream from an absolute path. The implementation handles
+ * root pseudo-filesystem directories and mountpoint-backed directories through
+ * different internal paths. Relative paths are rejected. \n
  * @since TizenRT v1.0
  */
 FAR DIR *opendir(FAR const char *path);
@@ -152,7 +156,10 @@ FAR DIR *opendir(FAR const char *path);
  * @brief read a directory
  * @details @b #include <dirent.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * Returns the next entry from the stream, or `NULL` on error or end of
+ * directory. In the current implementation, end of directory sets `errno` to
+ * 0, so callers cannot distinguish EOF from error by the return value alone.
+ * \n
  * @since TizenRT v1.0
  */
 FAR struct dirent *readdir(FAR DIR *dirp);
@@ -169,14 +176,19 @@ int readdir_r(FAR DIR *dirp, FAR struct dirent *entry, FAR struct dirent **resul
  * @brief reset the position of a directory stream to the beginning of a directory
  * @details @b #include <dirent.h> \n
  * SYSTEM CALL API \n
- * POSIX API (refer to : http://pubs.opengroup.org/onlinepubs/9699919799/)
+ * Rewinds the stream when the implementation can do so. Invalid or unsupported
+ * streams are ignored because this API has no error return. \n
  * @since TizenRT v1.0
  */
 void rewinddir(FAR DIR *dirp);
 /**
  * @ingroup DIRENT_KERNEL
- * @brief sets the location in the directory stream from which the next readdir() call will start.
- * @details @b #include <dirent.h>
+ * @brief set the location used by the next `readdir()` call
+ * @details @b #include <dirent.h> \n
+ * SYSTEM CALL API \n
+ * This API is best-effort in the current implementation. Unsupported streams
+ * are ignored because there is no error return, and out-of-range offsets are
+ * handled according to the active backend path. \n
  * @param[in] dirp An instance of type DIR.
  * @param[in] loc offset to seek.
  * @since TizenRT v1.0

@@ -53,7 +53,15 @@ extern "C" {
  * @cond
  * @internal
  */
+/**
+ * Install or replace one signal action entry on the target task's
+ * `sigactionq`.
+ */
 int sig_sethandler(struct tcb_s *tcb, int signo, struct sigaction *act);
+/**
+ * Report whether the target task currently has a signal action entry for
+ * the requested signal number.
+ */
 bool sig_is_handler_registered(struct tcb_s *tcb, int signo);
 /**
  * @endcond

@@ -103,7 +103,11 @@
  * Name: clock_gettime
  *
  * Description:
- *   Clock Functions based on POSIX APIs
+ *   Return the current CLOCK_REALTIME value or, when enabled by
+ *   CONFIG_CLOCK_MONOTONIC, the CLOCK_MONOTONIC value produced by
+ *   clock_systimespec().
+ *   CLOCK_REALTIME is formed by adding g_basetime to the current bias
+ *   reported by clock_systimespec().
  *
  ************************************************************************/
 
@@ -121,21 +125,12 @@ int clock_gettime(clockid_t clock_id, struct timespec *tp)
 	svdbg("clock_id=%d\n", clock_id);
 
 #ifdef CONFIG_CLOCK_MONOTONIC
-	/* CLOCK_MONOTONIC is an optional under POSIX: "If the Monotonic Clock
-	 * option is supported, all implementations shall support a clock_id
-	 * of CLOCK_MONOTONIC defined in <time.h>. This clock represents the
-	 * monotonic clock for the system. For this clock, the value returned
-	 * by clock_gettime() represents the amount of time (in seconds and
-	 * nanoseconds) since an unspecified point in the past (for example,
-	 * system start-up time, or the Epoch). This point does not change
-	 * after system start-up time. The value of the CLOCK_MONOTONIC clock
-	 * cannot be set via clock_settime(). This function shall fail if it
-	 * is invoked with a clock_id argument of CLOCK_MONOTONIC."
+	/* CLOCK_MONOTONIC is optional. When enabled, this implementation
+	 * returns the raw clock_systimespec() result for that clock ID.
 	 */
 
 	if (clock_id == CLOCK_MONOTONIC) {
-		/* The the time elapsed since the timer was initialized at power on
-		 * reset.
+		/* Return the helper result directly.
 		 */
 
 		ret = clock_systimespec(tp);
@@ -149,10 +144,9 @@ int clock_gettime(clockid_t clock_id, struct timespec *tp)
 		 */
 
 		if (clock_id == CLOCK_REALTIME) {
-			/* Get the elapsed time since the time-of-day was last set.
-			 * clock_systimespec() provides the time since power was applied;
-			 * the bias value corresponds to the time when the time-of-day was
-			 * last set.
+			/* Get the current bias used for realtime reconstruction.
+			 * Depending on configuration, clock_systimespec() may return
+			 * elapsed uptime or an RTC-derived delta.
 			 */
 
 			ret = clock_systimespec(&ts);

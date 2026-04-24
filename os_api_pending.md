@@ -1,0 +1,49 @@
+# `os/` API Pending List
+
+## Open Pending Items
+
+- `os/include/tinyara/board.h` -> board summary guide is complete in `5d777624c`; keep `board_*` APIs on the summary track and continue to exclude full implementation tracing under `os/board/**`.
+- Full-repo inventory expansion is still pending. Only the active slices are indexed in `os_api_inventory.md`.
+- `os/include/tinyara/random.h` -> `up_rngaddint`, `up_rngaddentropy`, `up_rngreseed`, and `up_randompool_initialize` are complete in `44d5a526a`.
+- `os/include/tinyara/crypto/blake2s.h` -> `blake2s()`, `blake2s_init()`, `blake2s_update()`, and `blake2s_final()` are complete in `dc8ea6326`.
+- `os/include/tinyara/crypto/blake2s.h` -> `blake2s_init_key()` and `blake2s_init_param()` are complete in `c09651bab`. The fix also propagates `blake2s_init_param()` failure out of `blake2s_init_key()`.
+- `os/include/semaphore.h` / `os/include/tinyara/semaphore.h` -> the `os/kernel/semaphore` owner slice is complete in `f2ea740ef` for `sem_destroy()`, `sem_wait()`, `sem_trywait()`, `sem_timedwait()`, `sem_timeout()`, `sem_post()`, `sem_tickwait()`, `sem_reset()`, `sem_setprotocol()`, `sem_register()`, and `sem_unregister()`, plus the folder guide.
+- `os/include/semaphore.h` -> `sem_init()` and `sem_getvalue()` map to `lib/libc/semaphore/*`, so they stay pending while the scope remains limited to `os/`. Their public header comments were validated in the semaphore tranche.
+- `os/include/tinyara/semaphore.h` -> `sem_getprotocol()` maps to `lib/libc/semaphore/sem_getprotocol.c`, so it stays pending while the scope remains limited to `os/`. The public header comment was validated in the semaphore tranche.
+- `os/include/semaphore.h` -> the named semaphore owner slice is complete in `64d9f4453` for `sem_open()`, `sem_close()`, and `sem_unlink()`, plus the folder guide.
+- `os/include/tinyara/mm/gran.h` / `os/include/tinyara/pgalloc.h` -> the `os/mm/mm_gran` owner slice is complete in `ce80ebd49` for `gran_initialize()`, `gran_release()`, `gran_reserve()`, `gran_alloc()`, `gran_free()`, `mm_pginitialize()`, `mm_pgreserve()`, `mm_pgalloc()`, and `mm_pgfree()`, plus the folder guide. The tranches fixed the last-word GAT read and uninitialized failure-log counter in `gran_alloc()`, the non-`CONFIG_GRAN_SINGLE` assertion typo in `mm_pginitialize()`, and the `mm_pgalloc()` byte-count bug that previously ignored `npages`.
+- `os/include/aio.h` -> the `os/fs/aio` owner slice is complete in `a3bc9001f` for `aio_cancel()`, `aio_fsync()`, `aio_read()`, and `aio_write()`, plus the folder guide. The tranche also fixed queue-failure cleanup in `aio_queue()` and worker-side use-after-free of the cached file pointer in the owner submit paths.
+- `os/include/aio.h` -> `aio_error()`, `aio_return()`, `aio_suspend()`, and `lio_listio()` map to `lib/libc/aio/*`, so they stay pending while the scope remains limited to `os/`.
+- `os/include/mqueue.h` / `os/include/tinyara/mqueue.h` -> the `os/fs/mqueue` owner slice is complete in `df0ad4e98` for `mq_open()`, `mq_close()`, `mq_close_group()`, and `mq_unlink()`, plus the folder guide. The tranche also added runtime `EBADF` handling for invalid closes, `NULL`/`ENAMETOOLONG` validation for queue names, and propagated unexpected `inode_remove()` failures in `mq_unlink()`.
+- `os/include/mqueue.h` -> the `os/kernel/mqueue` attribute-control slice is complete in `d2a47cea6` for `mq_getattr()` and `mq_setattr()`. The tranche also added runtime `EBADF`/`EINVAL` validation and corrected the public comments to describe descriptor-scoped `O_NONBLOCK` handling.
+- `os/include/mqueue.h` -> the `os/kernel/mqueue` notification slice is complete in `d50613612` for `mq_notify()`. The tranche also fixed the early `mqdes == NULL` critical-section leak and corrected the public comments to describe queue-global one-shot registration with ignored `sigev_notify`.
+- `os/include/mqueue.h` -> the `os/kernel/mqueue` receive slice is complete in `c247bac47` for `mq_receive()` and `mq_timedreceive()`. The tranche documented the shared receive helper flow, corrected the timed receive cancellation-point comment, and recorded the up-front watchdog reservation behavior.
+- `os/include/mqueue.h` -> the `os/kernel/mqueue` send slice is complete in `b3410b44a` for `mq_send()` and `mq_timedsend()`. The tranche corrected queue-full `EAGAIN` wording, documented equal-priority FIFO ordering, and recorded the up-front waitdog reservation in the timed path.
+- `os/include/tinyara/mqueue.h` -> the `os/kernel/mqueue` helper slice is complete in `7d7b0712d` for `mq_msgqalloc()`, `mq_descreate()`, `mq_desclose_group()`, and `mq_msgqfree()`. The tranche aligned the helper contracts with the real queue-object/descriptor lifetime split and the no-`errno` NULL failure paths.
+- `os/kernel/mqueue` -> `os/kernel/mqueue/AGENTS.md` is complete in `d9bc5b469`. The folder is now closed for its public APIs and future work should stay limited to later comment or behavior corrections.
+- `os/arch` -> `os/arch/AGENTS.md` is complete in `eb633f7ab`. Keep `os/board/**` implementation tracing excluded even though `boardctl()` now has a module guide.
+- `os/include/dirent.h` -> `readdir_r` maps to `lib/libc/dirent/lib_readdirr.c`, so it stays out of the current `os/fs/dirent` tranche while the scope remains limited to `os/`.
+- `os/include/dirent.h` -> `telldir` maps to `lib/libc/dirent/lib_telldir.c`, so it stays out of the current `os/fs/dirent` tranche while the scope remains limited to `os/`.
+- `os/fs/vfs` -> `os/fs/vfs/AGENTS.md` is complete in `9b584411d`. Future VFS work should expand only into still-undocumented public APIs, not the already closed module guide.
+- `os/include/tinyara/net/net.h` -> the `os/net` helper/init slice is complete in `88459c6bc` for `net_setup()`, `net_initialize()`, `net_checksd()`, `net_initlist()`, and `net_releaselist()`. The tranche documented the `NETSTACK_CALL_RET()` fallback difference between early and late init, the current lwIP `checksd` stub, and the backend-plus-`sem_destroy()` teardown sequence for socket lists.
+- `os/include/tinyara/net/net.h` -> `os/net/AGENTS.md` is complete in `3bb35ed32`. Broader `os/net` public APIs beyond the documented bridge/control slice remain pending for later tranches.
+- `os/include/tinyara/net/net.h` -> `netdev_foreach()` ownership investigation is complete for the current scope: the public declaration exists in `os/include`, but no implementation or wrapper symbol named `netdev_foreach()` was found anywhere in the current worktree. The nearest internal helper is `os/net/netmgr/netdev_mgr_internal.c` / `nm_foreach()`, but it iterates `struct netdev` and does not match the public `struct netif` callback contract. Keep this API pending until an actual `os/` owner implementation is introduced or confirmed.
+- `os/include/signal.h` -> the first `os/kernel/signal` control slice is complete in `7ab7732c1` for `sigaction()` and `sigprocmask()`. The tranche aligned the public comments with the task-local implementation, fixed the `CONFIG_SIGKILL_HANDLER` query path so `sigaction(SIGKILL, NULL, oact)` no longer dereferences `act`, and corrected `sigprocmask()` so invalid `how` now sets `EINVAL` and skips the pending-signal dispatch pass on the failure path.
+- `os/include/tinyara/signal.h` -> the helper slice is complete in `674e862c9` for `sig_sethandler()` and `sig_is_handler_registered()`. The tranche documented the target-task helper contracts, fixed the `ENOMEM` scheduler-lock leak in `sig_sethandler()`, and corrected `sig_sethandler()` so repeated registrations replace the existing entry instead of leaving the older handler active.
+- `os/include/signal.h` -> the send slice is complete in `8997af174` for `kill()` and `sigqueue()`. The tranche fixed the `kill(signo == 0)` path so it now performs existence checking without dispatching signal zero, rejected `signo == 0` in `sigqueue()`, and aligned the documented error surface with the real owner implementation.
+- `os/include/signal.h` -> the wait slice is complete in `de42b05ce` for `sigsuspend()`, `sigwaitinfo()`, and `sigtimedwait()`. The tranche aligned the public comments with the real temporary-mask and waitdog-based owner behavior, fixed `sigsuspend()` so already pending unmasked signals are dispatched instead of dropped and now return `EINTR`, and made `sigtimedwait()` reject invalid `tv_nsec` values and report waitdog-allocation failure as `ENOMEM`.
+- `os/kernel/signal` -> the folder guide / `AGENTS.md` remains pending in the same owner folder.
+- `os/include/signal.h` -> `sigpause()`, `raise()`, and `sigwait()` map to `lib/libc/signal/*`, so they stay pending while the scope remains limited to `os/`.
+- `os/include/signal.h` -> `pthread_kill()` and `pthread_sigmask()` map to `os/kernel/pthread/*`, so they will be tracked with the later pthread-owned signal-wrapper slice.
+- `os/include/sys/boardctl.h` / `os/arch` -> the module-guide tranche is complete. Future `os/arch` work should stay limited to new comment or API corrections rather than board-private implementation tracing.
+- `os/include/time.h` -> `time` maps to `lib/libc/time/lib_time.c`, so it stays out of the current `os/kernel/clock` tranche while the scope remains limited to `os/`.
+- Remaining broken-down time helpers declared in `os/include/time.h` (`mktime`, `gmtime`, `gmtime_r`, `localtime`, `localtime_r`, `strftime`, `strptime`, `difftime`) also map to `lib/libc/time/*`, so keep them pending while the scope remains limited to `os/`.
+- `os/include/sys/sendfile.h` -> `sendfile` maps to `lib/libc/misc/lib_sendfile.c`, so it stays out of the current `os/` implementation tranche. Revisit it only if the task scope expands beyond `os/`.
+
+## Pending Format
+
+Use the format below for new items:
+
+| Owner API | Needed Reference | Reason | Retry Condition |
+| --- | --- | --- | --- |
+| `header:function` | `path/to/helper` | `why the doc is blocked` | `what resolves it` |

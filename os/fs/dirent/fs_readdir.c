@@ -152,18 +152,17 @@ static inline int readpseudodir(struct fs_dirent_s *idir)
  * Description:
  *   The readdir() function returns a pointer to a dirent structure
  *   representing the next directory entry in the directory stream pointed
- *   to by dir.  It returns NULL on reaching the end-of-file or if an error
- *   occurred.
+ *   to by dir. It returns NULL on reaching end-of-file or if an error
+ *   occurred. The current implementation reports end-of-file by returning
+ *   NULL with errno set to 0.
  *
  * Inputs:
  *   dirp -- An instance of type DIR created by a previous call to opendir();
  *
  * Return:
- *   The readdir() function returns a pointer to a dirent structure, or NULL
- *   if an error occurs or end-of-file is reached.  On error, errno is set
- *   appropriately.
- *
- *   EBADF   - Invalid directory stream descriptor dir
+ *   Returns a pointer to the next dirent on success. Returns NULL on error or
+ *   end-of-file. Current error paths include EBADF for an invalid stream and
+ *   EACCES when a mountpoint stream lacks readdir support.
  *
  ****************************************************************************/
 

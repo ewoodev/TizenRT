@@ -215,25 +215,19 @@ static inline void open_emptydir(FAR struct fs_dirent_s *dir)
  * Name: opendir
  *
  * Description:
- *   The  opendir() function opens a directory stream corresponding to the
- *   directory name, and returns a pointer to the directory stream. The
- *   stream is positioned at the first entry in the directory.
+ *   Open a directory stream from an absolute path and position it at the
+ *   first entry. Root pseudo-filesystem directories and mountpoint-backed
+ *   directories are initialized through different internal paths.
  *
  * Inputs:
  *   path -- the directory to open
  *
  * Return:
- *   The opendir() function returns a pointer to the directory stream.  On
- *   error, NULL is returned, and errno is set appropriately.
- *
- *   EACCES  - Permission denied.
- *   EMFILE  - Too many file descriptors in use by process.
- *   ENFILE  - Too many files are currently open in the
- *             system.
- *   ENOENT  - Directory does not exist, or name is an empty
- *             string.
- *   ENOMEM  - Insufficient memory to complete the operation.
- *   ENOTDIR - 'path' is not a directory.
+ *   Returns a pointer to the directory stream on success. On failure, returns
+ *   NULL and sets errno. Current error paths include ENOENT for a null or
+ *   empty path, ENOTDIR for relative paths, missing pseudo nodes, or
+ *   non-directory targets, ENOMEM for allocation failure, and ENOSYS when a
+ *   mountpoint lacks required directory methods.
  *
  ****************************************************************************/
 

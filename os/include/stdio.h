@@ -412,13 +412,18 @@ int printf(FAR const char *format, ...);
  */
 int puts(FAR const char *s);
 /**
- * @cond
- * @internal
+ * @ingroup STDIO_LIBC
+ * @brief rename a path on the same mountpoint or move a pseudo-FS node
+ * @details @b #include <stdio.h> \n
+ * SYSTEM CALL API \n
+ * The current implementation requires absolute non-empty paths. Mountpoint
+ * renames are allowed only when both paths resolve to the same mountpoint.
+ * Only non-mountpoint source paths use the pseudo-filesystem flow, which
+ * creates a replacement inode at the destination and removes the old source
+ * entry. \n
+ * @since TizenRT v1.0
  */
 int rename(FAR const char *oldpath, FAR const char *newpath);
-/**
- * @endcond
- */
 /**
  * @brief print formatted output
  * @details @b #include <stdio.h> \n

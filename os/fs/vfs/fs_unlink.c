@@ -103,7 +103,10 @@
 /****************************************************************************
  * Name: unlink
  *
- * Description:  Remove a file managed a mountpoint
+ * Description:
+ *   Remove a pathname through a mountpoint unlink() hook or, in the
+ *   pseudo-filesystem, by removing a file-like node that has operations.
+ *   Pseudo-directories are handled by rmdir() instead.
  *
  ****************************************************************************/
 
@@ -145,13 +148,11 @@ int unlink(FAR const char *pathname)
 #endif
 
 #ifndef CONFIG_DISABLE_PSEUDOFS_OPERATIONS
-		/* If this is a "dangling" pseudo-file node (i.e., it has operations) then rm
-		 * should remove the node.
+		/* If this is a pseudo-file node with operations, unlink() removes it.
 		 */
 
 		if (!INODE_IS_SPECIAL(inode) && inode->u.i_ops) {
-			/* If this is a pseudo-file node (i.e., it has no operations)
-			 * then rmdir should remove the node.
+			/* Pseudo-directories without operations stay on the rmdir() path.
 			 */
 
 			inode_semtake();

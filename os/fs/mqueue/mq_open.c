@@ -77,11 +77,10 @@
  * Name: mq_open
  *
  * Description:
- *   This function establish a connection between a named message queue and
- *   the calling task.  After a successful call of mq_open(), the task can
- *   reference the message queue using the address returned by the call. The
- *   message queue remains usable until it is closed by a successful call to
- *   mq_close().
+ *   Resolve the queue name below CONFIG_FS_MQUEUE_MPATH and return a
+ *   descriptor for the caller's current task group.  If the queue does not
+ *   already exist, mq_open() can create a new pseudo-filesystem inode plus
+ *   the backing mqueue object when O_CREAT is supplied.
  *
  * Parameters:
  *   mq_name - Name of the queue to open
@@ -89,14 +88,14 @@
  *   Optional parameters.  When the O_CREAT flag is specified, two optional
  *   parameters are expected:
  *
- *     1. mode_t mode (ignored), and
+ *     1. mode_t mode (accepted but ignored), and
  *     2. struct mq_attr *attr.  The mq_maxmsg attribute
  *        is used at the time that the message queue is
  *        created to determine the maximum number of
  *        messages that may be placed in the message queue.
  *
  * Return Value:
- *   A message queue descriptor or (mqd_t)-1 (ERROR)
+ *   A message queue descriptor or (mqd_t)-1 (ERROR).
  *
  * Assumptions:
  *
@@ -125,7 +124,11 @@ mqd_t mq_open(FAR const char *mq_name, int oflags, ...)
 
 	/* Get the full path to the message queue */
 
-	snprintf(fullpath, MAX_MQUEUE_PATH, CONFIG_FS_MQUEUE_MPATH "/%s", mq_name);
+	ret = snprintf(fullpath, MAX_MQUEUE_PATH, CONFIG_FS_MQUEUE_MPATH "/%s", mq_name);
+	if (ret < 0 || ret >= MAX_MQUEUE_PATH) {
+		errcode = ENAMETOOLONG;
+		goto errout;
+	}
 
 	/* Make sure that the check for the existence of the message queue
 	 * and the creation of the message queue are atomic with respect to
@@ -158,7 +161,7 @@ mqd_t mq_open(FAR const char *mq_name, int oflags, ...)
 			goto errout_with_inode;
 		}
 
-		/* Create a message queue descriptor for the current thread */
+		/* Create a message queue descriptor for the current task group */
 
 		msgq = inode->u.i_mqueue;
 		mqdes = mq_descreate(NULL, msgq, oflags);
@@ -167,7 +170,7 @@ mqd_t mq_open(FAR const char *mq_name, int oflags, ...)
 			goto errout_with_inode;
 		}
 	} else {
-		/* The mqueue does not exists.  Were we asked to create it? */
+		/* The mqueue does not exist.  Were we asked to create it? */
 
 		if ((oflags & O_CREAT) == 0) {
 			/* The mqueue does not exist and O_CREAT is not set */
@@ -205,7 +208,7 @@ mqd_t mq_open(FAR const char *mq_name, int oflags, ...)
 			goto errout_with_inode;
 		}
 
-		/* Create a message queue descriptor for the TCB */
+		/* Create a message queue descriptor for the current task group */
 
 		mqdes = mq_descreate(NULL, msgq, oflags);
 		if (!mqdes) {

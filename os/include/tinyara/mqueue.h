@@ -131,14 +131,13 @@ struct task_group_s;  /* Forward reference */
  * Name: mq_msgqfree
  *
  * Description:
- *   This function deallocates an initialized message queue structure.
- *   First, it deallocates all of the queued messages in the message
- *   queue.  It is assumed that this message is fully unlinked and
- *   closed so that no thread will attempt access it while it is being
- *   deleted.
+ *   This function deallocates an initialized message queue structure
+ *   after named-queue lifetime management has already made it
+ *   unreachable.  It first returns every queued message through
+ *   mq_msgfree(), then releases the queue object itself.
  *
  * Inputs:
- *   msgq - Named essage queue to be freed
+ *   msgq - Named message queue to be freed
  *
  * Return Value:
  *   None
@@ -151,18 +150,23 @@ void mq_msgqfree(FAR struct mqueue_inode_s *msgq);
  * Name: mq_msgqalloc
  *
  * Description:
- *   This function implements a part of the POSIX message queue open logic.
- *   It allocates and initializes a structu mqueue_inode_s structure.
+ *   This function implements the queue-object allocation step of the
+ *   POSIX message queue open logic.  It allocates a zeroed
+ *   struct mqueue_inode_s, initializes its message list, copies queue
+ *   limits from @p attr when present, and otherwise falls back to the
+ *   internal defaults.
  *
  * Parameters:
- *   mode   - mode_t value is ignored
- *   attr   - The mq_maxmsg attribute is used at the time that the message
- *            queue is created to determine the maximum number of
- *             messages that may be placed in the message queue.
+ *   mode   - mode_t value is accepted for API compatibility but ignored
+ *   attr   - Optional creation attributes.  `mq_maxmsg` and `mq_msgsize`
+ *            are copied into the new queue object.  `mq_flags` and
+ *            `mq_curmsgs` are ignored on input.
  *
  * Return Value:
- *   The allocated and initalized message queue structure or NULL in the
- *   event of a failure.
+ *   The allocated and initialized message queue structure or NULL on
+ *   failure.  The helper rejects `attr->mq_msgsize > MQ_MAX_BYTES` by
+ *   returning NULL without setting errno; callers provide the public
+ *   error mapping.
  *
  ****************************************************************************/
 
@@ -172,16 +176,19 @@ FAR struct mqueue_inode_s *mq_msgqalloc(mode_t mode, FAR struct mq_attr *attr);
  * Name: mq_descreate
  *
  * Description:
- *   Create a message queue descriptor for the specified TCB
+ *   Create a message queue descriptor for the supplied task's group and
+ *   append it to that group's descriptor list.  When @p mtcb is NULL,
+ *   the helper uses the currently executing task.
  *
  * Inputs:
- *   TCB - task that needs the descriptor.
- *   msgq - Named message queue containing the message
- *   oflags - access rights for the descriptor
+ *   TCB - Task that needs the descriptor, or NULL for the current task.
+ *   msgq - Backing message queue object referenced by the descriptor.
+ *   oflags - Access rights and status flags stored in the descriptor.
  *
  * Return Value:
- *   On success, the message queue descriptor is returned.  NULL is returned
- *   on a failure to allocate.
+ *   On success, the message queue descriptor is returned.  NULL is
+ *   returned when no descriptor can be allocated; this helper does not
+ *   set errno on that failure path.
  *
  ****************************************************************************/
 
@@ -191,18 +198,21 @@ mqd_t mq_descreate(FAR struct tcb_s *mtcb, FAR struct mqueue_inode_s *msgq, int 
  * Name: mq_close_group
  *
  * Description:
- *   This function is used to indicate that all threads in the group are
- *   finished with the specified message queue mqdes.  The mq_close_group()
- *   deallocates any system resources allocated by the system for use by
- *   this task for its message queue.
+ *   Close one message queue descriptor held by the supplied task group.
+ *   The helper removes the descriptor, clears descriptor-owned message
+ *   queue notification state, and drops the queue inode reference.  The
+ *   queue object itself is freed only after it has already been unlinked
+ *   and this close drops the final reference.
  *
  * Parameters:
  *   mqdes - Message queue descriptor.
  *   group - Group that has the open descriptor.
  *
  * Return Value:
- *   0 (OK) if the message queue is closed successfully,
- *   otherwise, -1 (ERROR).
+ *   0 (OK) if the message queue descriptor is closed successfully,
+ *   otherwise, -1 (ERROR).  `errno` is set to `EBADF` when @p mqdes is
+ *   NULL or does not belong to @p group, or `EINVAL` when @p group is
+ *   NULL.
  *
  ****************************************************************************/
 
@@ -212,8 +222,10 @@ int mq_close_group(mqd_t mqdes, FAR struct task_group_s *group);
  * Name: mq_desclose_group
  *
  * Description:
- *   This function performs the portion of the mq_close operation related
- *   to freeing resource used by the message queue descriptor itself.
+ *   This function performs the descriptor-local portion of mq_close().
+ *   It removes @p mqdes from @p group, clears queue-global notification
+ *   state only when that notification is owned by @p mqdes, and returns
+ *   the descriptor storage to the global free list.
  *
  * Parameters:
  *   mqdes - Message queue descriptor.
@@ -223,6 +235,7 @@ int mq_close_group(mqd_t mqdes, FAR struct task_group_s *group);
  *   None.
  *
  * Assumptions:
+ * - The caller has already validated @p mqdes and @p group.
  * - Called only from mq_close() with the scheduler locked.
  *
  ****************************************************************************/

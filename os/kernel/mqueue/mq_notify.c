@@ -94,23 +94,28 @@
  * Name: mq_notify
  *
  * Description:
- *   If "notification" is not NULL, this function connects the task with
- *   the message queue such that the specified signal will be sent to the
- *   task whenever the message changes from empty to non-empty.  Only one
- *   notification can be attached to a message queue.
+ *   Register or remove a one-shot notification on a message queue.
+ *   At most one notification can be attached to the queue at a time.
  *
- *   If "notification" is NULL, the attached notification is detached (if
- *   it was held by the calling task) and the queue is available to attach
- *   another notification.
+ *   If notification is non-NULL and no notification is currently
+ *   attached, the current task becomes the owner and mq_notify() stores
+ *   sigev_signo plus sigev_value on the queue.  The sigev_notify field is
+ *   ignored by the current implementation.
  *
- *   When the notification is sent to the registered process, its
- *   registration will be removed.  The message queue will then be
- *   available for registration.
+ *   If notification is NULL, the current task may detach its own
+ *   registration.  When no registration exists, a NULL notification is a
+ *   successful no-op.  When another task owns the registration, the call
+ *   fails with EBUSY.
+ *
+ *   When a sender later observes the queue become non-empty, the sender
+ *   path clears the stored registration and queues the signal exactly
+ *   once.  Closing the owning descriptor also clears the stored
+ *   registration.
  *
  * Parameters:
  *   mqdes - Message queue descriptor
  *   notification - Real-time signal structure containing:
- *      sigev_notify - Should be SIGEV_SIGNAL (but actually ignored)
+ *      sigev_notify - Ignored by the current implementation
  *      sigev_signo - The signo to use for the notification
  *      sigev_value - Value associated with the signal
  *
@@ -119,13 +124,10 @@
  *   errno set to indicate the error.
  *
  *   EBADF The descriptor specified in mqdes is invalid.
- *   EBUSY Another process has already registered to receive notification
- *     for this message queue.
- *   EINVAL sevp->sigev_notify is not one of the permitted values; or
- *     sevp->sigev_notify is SIGEV_SIGNAL and sevp->sigev_signo is not a
- *     valid signal number.
- *   ENOMEM
- *     Insufficient memory.
+ *   EBUSY Another task already owns the queue notification, or the
+ *     current task attempts to replace an existing registration without
+ *     detaching it first.
+ *   EINVAL The supplied signal number is invalid.
  *
  * Assumptions:
  *
@@ -149,27 +151,31 @@ int mq_notify(mqd_t mqdes, const struct sigevent *notification)
 	struct mqueue_inode_s *msgq;
 	int errval;
 	irqstate_t flags;
-	
-	flags = enter_critical_section();
 
 	/* Was a valid message queue descriptor provided? */
 
 	if (!mqdes) {
-		/* No.. return EBADF */
+		/* No... return EBADF. */
 
 		set_errno(EBADF);
 		return ERROR;
 	}
 
+	flags = enter_critical_section();
+
 	/* Get a pointer to the message queue */
 
 	msgq = mqdes->msgq;
+	if (!msgq) {
+		errval = EBADF;
+		goto errout;
+	}
 
 	/* Get the current process ID */
 
 	rtcb = this_task();
 
-	/* Is there already a notification attached */
+	/* Is there already a notification attached? */
 
 	if (!msgq->ntmqdes) {
 		/* No... Have we been asked to establish one? */
@@ -198,15 +204,15 @@ int mq_notify(mqd_t mqdes, const struct sigevent *notification)
 	 */
 
 	else if ((msgq->ntpid != rtcb->pid) || (notification)) {
-		/* This thread does not own the notification OR it is
-		 * not trying to remove it.  Return EBUSY.
+		/* This task does not own the notification, or it is trying to
+		 * replace an existing registration without detaching it first.
 		 */
 
 		errval = EBUSY;
 		goto errout;
 	} else {
-		/* Yes, the notification belongs to this thread.  Allow the
-		 * thread to detach the notification.
+		/* Yes, the notification belongs to this task.  Allow it to
+		 * detach the notification.
 		 */
 
 		msgq->ntpid             = INVALID_PROCESS_ID;

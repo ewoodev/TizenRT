@@ -172,12 +172,56 @@ extern "C" {
  * Public Function Prototypes
  ****************************************************************************/
 
+/****************************************************************************
+ * Name: aio_cancel
+ *
+ * Description:
+ *   Cancel queued low-priority AIO work items.  When aiocbp is NULL, fildes
+ *   selects the queued requests to inspect.  When aiocbp is non-NULL, the
+ *   current implementation searches by aiocb pointer and ignores fildes.
+ *
+ ****************************************************************************/
+
 int aio_cancel(int fildes, FAR struct aiocb *aiocbp);
 int aio_error(FAR const struct aiocb *aiocbp);
+
+/****************************************************************************
+ * Name: aio_fsync
+ *
+ * Description:
+ *   Queue a low-priority worker request that resolves aio_fildes through
+ *   fs_getfilep() and then calls file_fsync().  The op argument is accepted
+ *   for compatibility but is currently ignored.
+ *
+ ****************************************************************************/
+
 int aio_fsync(int op, FAR struct aiocb *aiocbp);
+
+/****************************************************************************
+ * Name: aio_read
+ *
+ * Description:
+ *   Queue a low-priority worker pread-style request.  The current
+ *   implementation resolves aio_fildes through fs_getfilep(), reads at
+ *   aio_offset with file_pread(), and requires the caller to keep aiocbp and
+ *   aio_buf valid until completion.
+ *
+ ****************************************************************************/
+
 int aio_read(FAR struct aiocb *aiocbp);
 ssize_t aio_return(FAR struct aiocb *aiocbp);
 int aio_suspend(FAR const struct aiocb *const list[], int nent, FAR const struct timespec *timeout);
+
+/****************************************************************************
+ * Name: aio_write
+ *
+ * Description:
+ *   Queue a low-priority worker write request.  The current implementation
+ *   resolves aio_fildes through fs_getfilep(), uses file_pwrite() when
+ *   O_APPEND is clear, and falls back to file_write() when O_APPEND is set.
+ *
+ ****************************************************************************/
+
 int aio_write(FAR struct aiocb *aiocbp);
 int lio_listio(int mode, FAR struct aiocb *const list[], int nent, FAR struct sigevent *sig);
 

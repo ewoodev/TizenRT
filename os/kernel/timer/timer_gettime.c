@@ -88,30 +88,21 @@
  * Name: timer_gettime
  *
  * Description:
- *  The timer_gettime() function will store the amount of time until the
- *  specified timer, timerid, expires and the reload value of the timer into the
- *  space pointed to by the value argument. The it_value member of this structure
- *  will contain the amount of time before the timer expires, or zero if the timer
- *  is disarmed. This value is returned as the interval until timer expiration,
- *  even if the timer was armed with absolute time. The it_interval member of
- *  value will contain the reload value last set by timer_settime().
+ *  Store the remaining watchdog delay in value->it_value and the module's last
+ *  armed watchdog delay in value->it_interval. This reflects internal timer
+ *  state, not necessarily the caller's last it_interval value.
  *
  * Parameters:
- *   timerid - The pre-thread timer, previously created by the call to
- *   timer_create(), whose remaining time count will be returned..
+ *   timerid - The timer returned by timer_create().
+ *   value - Receives the remaining time and the last armed watchdog delay.
  *
  * Return Value:
- *   If the timer_gettime() succeeds, a value of 0 (OK) will be returned.
- *   If an error occurs, the value -1 (ERROR) will be returned, and errno set to
- *   indicate the error.
- *
- *   EINVAL - The timerid argument does not correspond to an ID returned by
- *     timer_create() but not yet deleted by timer_delete().
+ *   Returns OK on success. Returns ERROR and sets errno to EINVAL when the
+ *   timer handle or output pointer is invalid.
  *
  * Assumptions/Limitations:
- *   Due to the asynchronous operation of this function, the time reported
- *   by this function could be significantly more than that actual time
- *   remaining on the timer at any time.
+ *   The watchdog may continue counting while this function runs, so the
+ *   reported remaining time is only a snapshot.
  *
  ********************************************************************************/
 
