@@ -106,6 +106,11 @@ int pm_sleep(int milliseconds)
 	sem_t pm_sem;
 	irqstate_t flags;
 	int ret = ERROR;
+
+	if (milliseconds <= 0) {
+		return OK;
+	}
+
 	/* TODO - Since PM & Kernel are separate, we should not use tcb inside pm.
 	 * We need to remove tcb in future.
 	 */
@@ -135,12 +140,10 @@ int pm_sleep(int milliseconds)
 		wd_delete(rtcb->waitdog);
 		goto errout;
 	}
-	/* sem_wait untill the timer expires */
-	do {
-		ret = sem_wait(&pm_sem);
-		DEBUGASSERT(ret == 0 || errno == EINTR);
-	} while (ret < 0);
-	/* When the semaphore is freed, make the pm timer free */
+	/* sem_wait until the timer expires or is interrupted by a signal */
+	ret = sem_wait(&pm_sem);
+
+	/* When the semaphore is freed or interrupted, make the pm timer free */
 	wd_delete(rtcb->waitdog);
 errout:
 	rtcb->waitdog = NULL;
