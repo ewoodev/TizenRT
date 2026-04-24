@@ -159,42 +159,45 @@ static void sig_timeout(int argc, uint32_t itcb)
 #endif
 }
 
-#ifdef CONFIG_SCHED_WAKEUPSOURCE
 /****************************************************************************
- * Name: sig_sleepwait_wakeup
+ * Name: sig_wait_suspension
  *
  * Description:
- *   Wait for the specified interval using a timeout watchdog that is also
- *   registered as a PM wakeup source. This helper follows nanosleep-style
- *   semantics: it returns OK when the timeout expires and ERROR with EINTR
- *   when interrupted by a signal.
+ *   Suspend the current task until an unmasked signal is received or the
+ *   timeout expires. When requested, the timeout watchdog is also registered
+ *   as a PM wakeup source.
  *
  * Parameters:
+ *   rtcb         - The task to suspend
+ *   set          - The signal mask to wait for
  *   timeout - The amount of time to wait
+ *   wakeupsource - Non-zero to register the timeout watchdog as a PM wakeup
+ *                  source
  *
  * Return Value:
- *   OK on timeout, otherwise ERROR with errno set appropriately.
+ *   SIG_WAIT_TIMEOUT on timeout, a signal number when awakened by a signal,
+ *   or ERROR on failure with errno set appropriately.
  *
  ****************************************************************************/
 
-int sig_sleepwait_wakeup(FAR const struct timespec *timeout)
+static int sig_wait_suspension(FAR struct tcb_s *rtcb, FAR const sigset_t *set,
+	FAR const struct timespec *timeout, int wakeupsource)
 {
-	FAR struct tcb_s *rtcb = this_task();
-	irqstate_t saved_state;
 	int32_t waitticks;
-	int ret = ERROR;
+	int ret;
 
 	DEBUGASSERT(rtcb->waitdog == NULL);
+	rtcb->sigwaitmask = *set;
 
-	(void)enter_cancellation_point();
+	if (!timeout) {
+		up_block_task(rtcb, TSTATE_WAIT_SIG);
+		goto classify_wakeup;
+	}
 
-	if (!timeout || timeout->tv_nsec < 0 || timeout->tv_nsec >= NSEC_PER_SEC) {
+	if (timeout->tv_nsec < 0 || timeout->tv_nsec >= NSEC_PER_SEC) {
 		set_errno(EINVAL);
 		goto errout;
 	}
-
-	saved_state = enter_critical_section();
-	rtcb->sigwaitmask = NULL_SIGNAL_SET;
 
 #ifdef CONFIG_HAVE_LONG_LONG
 	{
@@ -217,14 +220,18 @@ int sig_sleepwait_wakeup(FAR const struct timespec *timeout)
 	rtcb->waitdog = wd_create();
 	if (!rtcb->waitdog) {
 		set_errno(EAGAIN);
-		goto errout_with_critical;
+		goto errout;
 	}
 
-	if (wd_setwakeupsource(rtcb->waitdog) != OK) {
+#ifdef CONFIG_SCHED_WAKEUPSOURCE
+	if (wakeupsource && wd_setwakeupsource(rtcb->waitdog) != OK) {
 		wd_delete(rtcb->waitdog);
 		rtcb->waitdog = NULL;
-		goto errout_with_critical;
+		goto errout;
 	}
+#else
+	DEBUGASSERT(!wakeupsource);
+#endif
 
 	{
 		wdparm_t wdparm;
@@ -234,34 +241,77 @@ int sig_sleepwait_wakeup(FAR const struct timespec *timeout)
 		if (ret != OK) {
 			wd_delete(rtcb->waitdog);
 			rtcb->waitdog = NULL;
-			goto errout_with_critical;
+			goto errout;
 		}
 	}
 
 	up_block_task(rtcb, TSTATE_WAIT_SIG);
 
-	wd_delete(rtcb->waitdog);
-	rtcb->waitdog = NULL;
+	if (rtcb->waitdog) {
+		wd_delete(rtcb->waitdog);
+		rtcb->waitdog = NULL;
+	}
+
+classify_wakeup:
 	rtcb->sigwaitmask = NULL_SIGNAL_SET;
 
 	if (GOOD_SIGNO(rtcb->sigunbinfo.si_signo)) {
-		set_errno(EINTR);
-		ret = ERROR;
-	} else {
-		DEBUGASSERT(rtcb->sigunbinfo.si_signo == SIG_WAIT_TIMEOUT);
-		ret = OK;
+		return rtcb->sigunbinfo.si_signo;
 	}
 
+	DEBUGASSERT(rtcb->sigunbinfo.si_signo == SIG_WAIT_TIMEOUT);
+	return SIG_WAIT_TIMEOUT;
+
+errout:
+	rtcb->sigwaitmask = NULL_SIGNAL_SET;
+	return ERROR;
+}
+
+#ifdef CONFIG_SCHED_WAKEUPSOURCE
+/****************************************************************************
+ * Name: sig_sleepwait_wakeup
+ *
+ * Description:
+ *   Wait for the specified interval using a timeout watchdog that is also
+ *   registered as a PM wakeup source. This helper follows nanosleep-style
+ *   semantics: it returns OK when the timeout expires and ERROR with EINTR
+ *   when interrupted by a signal.
+ *
+ * Parameters:
+ *   timeout - The amount of time to wait
+ *
+ * Return Value:
+ *   OK on timeout, otherwise ERROR with errno set appropriately.
+ *
+ ****************************************************************************/
+
+int sig_sleepwait_wakeup(FAR const struct timespec *timeout)
+{
+	FAR struct tcb_s *rtcb = this_task();
+	irqstate_t saved_state;
+	sigset_t set;
+	int ret;
+
+	(void)enter_cancellation_point();
+
+	(void)sigemptyset(&set);
+
+	saved_state = enter_critical_section();
+	ret = sig_wait_suspension(rtcb, &set, timeout, 1);
 	leave_critical_section(saved_state);
+
+	if (ret == SIG_WAIT_TIMEOUT) {
+		leave_cancellation_point();
+		return OK;
+	}
+
+	if (GOOD_SIGNO(ret)) {
+		set_errno(EINTR);
+		ret = ERROR;
+	}
+
 	leave_cancellation_point();
 	return ret;
-
-errout_with_critical:
-	rtcb->sigwaitmask = NULL_SIGNAL_SET;
-	leave_critical_section(saved_state);
-errout:
-	leave_cancellation_point();
-	return ERROR;
 }
 #endif
 
@@ -318,7 +368,6 @@ int sigtimedwait(FAR const sigset_t *set, FAR struct siginfo *info, FAR const st
 	sigset_t intersection;
 	FAR sigpendq_t *sigpend;
 	irqstate_t saved_state;
-	int32_t waitticks;
 	int ret = ERROR;
 
 	DEBUGASSERT(rtcb->waitdog == NULL);
@@ -367,85 +416,14 @@ int sigtimedwait(FAR const sigset_t *set, FAR struct siginfo *info, FAR const st
 	/* We will have to wait for a signal to be posted to this task. */
 
 	else {
-		/* Save the set of pending signals to wait for */
+		ret = sig_wait_suspension(rtcb, set, timeout, 0);
 
-		rtcb->sigwaitmask = *set;
-
-		/* Check if we should wait for the timeout */
-
-		if (timeout) {
-			/* Convert the timespec to system clock ticks, making sure that
-			 * the resulting delay is greater than or equal to the requested
-			 * time in nanoseconds.
-			 */
-
-#ifdef CONFIG_HAVE_LONG_LONG
-			uint64_t waitticks64 = ((uint64_t)timeout->tv_sec * NSEC_PER_SEC + (uint64_t)timeout->tv_nsec + NSEC_PER_TICK - 1) / NSEC_PER_TICK;
-			DEBUGASSERT(waitticks64 <= UINT32_MAX);
-			waitticks = (uint32_t)waitticks64;
-#else
-			uint32_t waitmsec;
-
-			DEBUGASSERT(timeout->tv_sec < UINT32_MAX / MSEC_PER_SEC);
-			waitmsec = timeout->tv_sec * MSEC_PER_SEC + (timeout->tv_nsec + NSEC_PER_MSEC - 1) / NSEC_PER_MSEC;
-			waitticks = MSEC2TICK(waitmsec);
-#endif
-
-			/* Create a watchdog */
-
-			rtcb->waitdog = wd_create();
-			DEBUGASSERT(rtcb->waitdog);
-
-			if (rtcb->waitdog) {
-				/* This little bit of nonsense is necessary for some
-				 * processors where sizeof(pointer) < sizeof(uint32_t).
-				 * see wdog.h.
-				 */
-
-				wdparm_t wdparm;
-				wdparm.pvarg = (FAR void *)rtcb;
-
-				/* Start the watchdog */
-
-				wd_start(rtcb->waitdog, waitticks, (wdentry_t)sig_timeout, 1, wdparm.dwarg);
-
-				/* Now wait for either the signal or the watchdog */
-
-				up_block_task(rtcb, TSTATE_WAIT_SIG);
-
-				/* We no longer need the watchdog */
-
-				wd_delete(rtcb->waitdog);
-				rtcb->waitdog = NULL;
-			}
-
-			/* REVISIT: And do what if there are no watchdog timers?  The wait
-			 * will fail and we will return something bogus.
-			 */
-		}
-
-		/* No timeout, just wait */
-
-		else {
-			/* And wait until one of the unblocked signals is posted */
-
-			up_block_task(rtcb, TSTATE_WAIT_SIG);
-		}
-
-		/* We are running again, clear the sigwaitmask */
-
-		rtcb->sigwaitmask = NULL_SIGNAL_SET;
-
-		/* When we awaken, the cause will be in the TCB.  Get the signal number
-		 * or timeout) that awakened us.
-		 */
-
-		if (GOOD_SIGNO(rtcb->sigunbinfo.si_signo)) {
+		if (GOOD_SIGNO(ret)) {
 			/* We were awakened by a signal... but is it one of the signals that
 			 * we were waiting for?
 			 */
 
-			if (sigismember(set, rtcb->sigunbinfo.si_signo)) {
+			if (sigismember(set, ret)) {
 				/* Yes.. the return value is the number of the signal that
 				 * awakened us.
 				 */
@@ -457,12 +435,12 @@ int sigtimedwait(FAR const sigset_t *set, FAR struct siginfo *info, FAR const st
 				set_errno(EINTR);
 				ret = ERROR;
 			}
-		} else {
+		} else if (ret != ERROR) {
 			/* Otherwise, we must have been awakened by the timeout.  Set EGAIN
 			 * and return an error.
 			 */
 
-			DEBUGASSERT(rtcb->sigunbinfo.si_signo == SIG_WAIT_TIMEOUT);
+			DEBUGASSERT(ret == SIG_WAIT_TIMEOUT);
 			set_errno(EAGAIN);
 			ret = ERROR;
 		}
