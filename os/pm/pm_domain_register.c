@@ -60,16 +60,16 @@ FAR struct pm_domain_s *pm_domain_find(FAR const char *domain_name)
 
 	DEBUGASSERT(domain_name != NULL);
 
-	flags = enter_critical_section();
+	flags = spin_lock_irqsave(&g_pmglobals.domain_lock);
 	for (entry = dq_peek(&g_pmglobals.domains); entry != NULL; entry = dq_next(entry)) {
 		domain = (FAR struct pm_domain_s *)entry;
 		if (strncmp(domain->name, domain_name, CONFIG_PM_DOMAIN_NAME_SIZE) == 0) {
-			leave_critical_section(flags);
+			spin_unlock_irqrestore(&g_pmglobals.domain_lock, flags);
 			return domain;
 		}
 	}
 
-	leave_critical_section(flags);
+	spin_unlock_irqrestore(&g_pmglobals.domain_lock, flags);
 	return NULL;
 }
 
@@ -112,7 +112,9 @@ FAR struct pm_domain_s *pm_domain_register(FAR const char *domain)
 		return NULL;
 	}
 
-	/* Check if domain is already registered */
+	/* Check if domain is already registered.
+	 * This is an optimization to avoid malloc if not needed.
+	 */
 	new_domain = pm_domain_find(domain);
 	if (new_domain != NULL) {
 		return new_domain;
@@ -137,13 +139,26 @@ FAR struct pm_domain_s *pm_domain_register(FAR const char *domain)
 	new_domain->name[CONFIG_PM_DOMAIN_NAME_SIZE - 1] = '\0'; /* Ensure null termination */
 	new_domain->suspend_count = 0;
 	new_domain->wdog = NULL;
-#ifdef CONFIG_PM_METRICS
+	#ifdef CONFIG_PM_METRICS
 	new_domain->stime = 0;
 	new_domain->blocking_board_sleep_ticks = 0;
 	new_domain->suspend_ticks = 0;
-#endif
+	#endif
 
-	flags = enter_critical_section();
+	flags = spin_lock_irqsave(&g_pmglobals.domain_lock);
+
+	/* Re-check under the lock so concurrent callers do not
+	 * register duplicate domains with the same name.
+	 */
+	for (FAR dq_entry_t *entry = dq_peek(&g_pmglobals.domains); entry != NULL; entry = dq_next(entry)) {
+		FAR struct pm_domain_s *registered_domain = (FAR struct pm_domain_s *)entry;
+		if (strncmp(registered_domain->name, domain, CONFIG_PM_DOMAIN_NAME_SIZE) == 0) {
+			spin_unlock_irqrestore(&g_pmglobals.domain_lock, flags);
+			kmm_free(new_domain);
+			return registered_domain;
+		}
+	}
+
 	/* Add the new domain to the global list */
 	dq_addlast(&new_domain->node, &g_pmglobals.domains);
 	g_pmglobals.ndomains++;
@@ -151,7 +166,8 @@ FAR struct pm_domain_s *pm_domain_register(FAR const char *domain)
 	/* For newly registered domain initialize its pm metrics*/
 	pm_metrics_update_domain(new_domain);
 
-	leave_critical_section(flags);
+	spin_unlock_irqrestore(&g_pmglobals.domain_lock, flags);
+
 	pmvdbg("Domain '%s' registered successfully\n", domain);
 	return new_domain;
 }

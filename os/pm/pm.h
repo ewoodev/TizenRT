@@ -64,6 +64,7 @@
 #include <tinyara/wqueue.h>
 #include <tinyara/pm/pm.h>
 #include <tinyara/wdog.h>
+#include <tinyara/spinlock.h>
 
 #ifdef CONFIG_PM
 
@@ -94,6 +95,9 @@ struct pm_global_s {
 
 	/* suspended_domains is a doubly-linked list of domains with suspend_count > 0 */
 	dq_queue_t suspended_domains;
+
+	/* This spinlock protects the domain queues and structures */
+	spinlock_t domain_lock;
 
 	/* state       - The current state for this PM domain (as determined by an
 	 *               explicit call to pm_changestate())

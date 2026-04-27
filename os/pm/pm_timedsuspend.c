@@ -80,21 +80,29 @@
 static void timer_timeout(int argc, uint32_t domain_ptr)
 {
 	FAR struct pm_domain_s *domain = (FAR struct pm_domain_s *)((uintptr_t)domain_ptr);
+	irqstate_t flags;
 
 	DEBUGASSERT(domain != NULL && domain->wdog != NULL);
 
-	/* This timeout function is executed within enter_critical_section.
+	/* This timeout function is executed with domain_lock held.
 	 * This protects it from memory release caused by pm_domain_unregister.
 	 */
 
-	/* PM transition will be resume here */
+	flags = spin_lock_irqsave(&g_pmglobals.domain_lock);
+
+	/* PM transition will be resume here.
+	 * Release the lock before calling pm_resume because it acquires the lock internally.
+	 */
+	spin_unlock_irqrestore(&g_pmglobals.domain_lock, flags);
+
 	if (pm_resume(domain) != OK) {
 		pmlldbg("Unable to resume domain: %s\n", domain->name);
 	}
 
+	flags = spin_lock_irqsave(&g_pmglobals.domain_lock);
 	(void)wd_delete(domain->wdog);
 	domain->wdog = NULL;
-
+	spin_unlock_irqrestore(&g_pmglobals.domain_lock, flags);
 }
 
 /************************************************************************
@@ -131,14 +139,18 @@ int pm_timedsuspend(struct pm_domain_s *domain, unsigned int milliseconds)
 		return ret;
 	}
 
-	flags = enter_critical_section();
+	flags = spin_lock_irqsave(&g_pmglobals.domain_lock);
 	wdog = domain->wdog;
 
 	/* If delay is zero then cancel the timer (PM Policy) */
 	if (delay == 0) {
 		if (wdog) {
-			/* Manually trigger timeout to resume and cleanup */
+			/* Manually trigger timeout to resume and cleanup.
+			 * Lock is handled inside timer_timeout.
+			 */
+			spin_unlock_irqrestore(&g_pmglobals.domain_lock, flags);
 			timer_timeout(0, (uint32_t)((uintptr_t)domain));
+			return OK;
 		}
 		ret = OK;
 		goto exit;
@@ -152,11 +164,13 @@ int pm_timedsuspend(struct pm_domain_s *domain, unsigned int milliseconds)
 			goto exit;
 		}
 
-		/* Unable to suspend domain, so delete the timer */
+		/* Release the lock before calling pm_suspend to avoid deadlock */
+		spin_unlock_irqrestore(&g_pmglobals.domain_lock, flags);
 		if (pm_suspend(domain) != OK) {
 			(void)wd_delete(wdog);
-			goto exit;
+			return ERROR;
 		}
+		flags = spin_lock_irqsave(&g_pmglobals.domain_lock);
 		domain->wdog = wdog;
 	}
 
@@ -171,14 +185,17 @@ int pm_timedsuspend(struct pm_domain_s *domain, unsigned int milliseconds)
 	/* Pass domain pointer as argument to timer_timeout */
 	if (wd_start(wdog, delay, (wdentry_t)timer_timeout, 1, (uint32_t)((uintptr_t)domain)) != OK) {
 		set_errno(EAGAIN);
-		/* Manually trigger timeout to resume and cleanup on failure to start */
+		/* Manually trigger timeout to resume and cleanup on failure to start.
+		 * Lock is handled inside timer_timeout.
+		 */
+		spin_unlock_irqrestore(&g_pmglobals.domain_lock, flags);
 		timer_timeout(0, (uint32_t)((uintptr_t)domain));
-		goto exit;
+		return ERROR;
 	}
 
 	ret = OK;
 
 exit:
-	leave_critical_section(flags);
+	spin_unlock_irqrestore(&g_pmglobals.domain_lock, flags);
 	return ret;
 }

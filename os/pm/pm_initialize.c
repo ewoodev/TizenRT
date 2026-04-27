@@ -130,6 +130,8 @@ void pm_initialize(struct pm_sleep_ops *sleep_ops)
 	dq_init(&g_pmglobals.domains);
 	dq_init(&g_pmglobals.suspended_domains);
 
+	spin_initialize(&g_pmglobals.domain_lock, SP_UNLOCKED);
+
 	/* Register the PM ops structures */
 	g_pmglobals.sleep_ops = sleep_ops;
 

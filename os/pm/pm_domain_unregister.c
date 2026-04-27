@@ -52,9 +52,9 @@ int pm_domain_unregister(struct pm_domain_s *domain)
 		return ERROR;
 	}
 
-	flags = enter_critical_section();
+	flags = spin_lock_irqsave(&g_pmglobals.domain_lock);
 
-	/* This enter_critical_section ensures that the pm_timedsuspend's
+	/* This lock ensures that the pm_timedsuspend's
 	 * timeout executes correctly
 	 */
 	if (domain->wdog) {
@@ -71,7 +71,7 @@ int pm_domain_unregister(struct pm_domain_s *domain)
 	dq_rem(&domain->node, &g_pmglobals.domains);
 	g_pmglobals.ndomains--;
 
-	leave_critical_section(flags);
+	spin_unlock_irqrestore(&g_pmglobals.domain_lock, flags);
 
 	pmvdbg("Domain '%s' unregistered successfully\n", domain->name);
 

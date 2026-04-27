@@ -103,11 +103,11 @@ int pm_resume(FAR struct pm_domain_s *domain)
 		return ERROR;
 	}
 
-	flags = enter_critical_section();
+	flags = spin_lock_irqsave(&g_pmglobals.domain_lock);
 
 	if (domain->suspend_count <= 0) {
 		ret = ERROR;
-		set_errno(ERANGE);
+		set_errno(EINVAL);
 		goto errout;
 	}
 
@@ -115,13 +115,14 @@ int pm_resume(FAR struct pm_domain_s *domain)
 
 	domain->suspend_count--;
 
-	/* If suspend_count becomes 0, remove this domain from suspended_domains queue */
+	/* If this is the last resume for this domain, remove it from suspended_domains queue */
 	if (domain->suspend_count == 0) {
 		dq_rem(&domain->suspended_node, &g_pmglobals.suspended_domains);
 	}
 
-errout:
-	leave_critical_section(flags);
+	errout:
+	spin_unlock_irqrestore(&g_pmglobals.domain_lock, flags);
+
 	return ret;
 }
 #endif /* CONFIG_PM */

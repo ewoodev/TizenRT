@@ -107,7 +107,7 @@ int pm_suspend(FAR struct pm_domain_s *domain)
 		return ERROR;
 	}
 
-	flags = enter_critical_section();
+	flags = spin_lock_irqsave(&g_pmglobals.domain_lock);
 
 	if (domain->suspend_count >= UINT16_MAX) {
 		ret = ERROR;
@@ -125,7 +125,7 @@ int pm_suspend(FAR struct pm_domain_s *domain)
 	}
 
 errout:
-	leave_critical_section(flags);
+	spin_unlock_irqrestore(&g_pmglobals.domain_lock, flags);
 	return ret;
 }
 #endif /* CONFIG_PM */

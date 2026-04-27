@@ -317,7 +317,7 @@ static struct power_path_template_s *power_find_best_match(const char *relpath, 
 			if (domain_len > 0 && domain_len < CONFIG_PM_DOMAIN_NAME_SIZE) {
 				strncpy(domain_name, relpath, domain_len);
 				domain_name[domain_len] = '\0'; /* Ensure null termination */
-				flags = enter_critical_section();
+				flags = spin_lock_irqsave(&g_pmglobals.domain_lock);
 				path_priv->domain_ptr = NULL;
 				for (dq_entry_t *entry = dq_peek(&g_pmglobals.domains); entry != NULL; entry = dq_next(entry)) {
 					struct pm_domain_s *domain = (struct pm_domain_s *)entry;
@@ -326,7 +326,7 @@ static struct power_path_template_s *power_find_best_match(const char *relpath, 
 						break;
 					}
 				}
-				leave_critical_section(flags);
+				spin_unlock_irqrestore(&g_pmglobals.domain_lock, flags);
 
 				/* If the domain name from path is not found, it's not a valid match */
 				if (path_priv->domain_ptr) {
@@ -693,7 +693,7 @@ static int power_readdir_domains(struct fs_dirent_s *dir)
 		return OK;
 	}
 
-	flags = enter_critical_section();
+	flags = spin_lock_irqsave(&g_pmglobals.domain_lock);
 
 	/* On first dynamic read, initialize the entry pointer */
 	if (powerdir->base.index == 1 && powerdir->domain_position == NULL) {
@@ -708,11 +708,11 @@ static int power_readdir_domains(struct fs_dirent_s *dir)
 		
 		powerdir->domain_position = dq_next(powerdir->domain_position);
 		powerdir->base.index++;
-		leave_critical_section(flags);
+		spin_unlock_irqrestore(&g_pmglobals.domain_lock, flags);
 		return OK;
 	}
 	
-	leave_critical_section(flags);
+	spin_unlock_irqrestore(&g_pmglobals.domain_lock, flags);
 	return -ENOENT; /* End of directory */
 }
 

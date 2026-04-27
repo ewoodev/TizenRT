@@ -181,14 +181,14 @@ void pm_metrics_update_idle(void)
 
 	if (g_pm_metrics_running) {
 		g_pm_metrics->total_try_ticks++;
-		flags = enter_critical_section(); /* Protect domain list access */
+		flags = spin_lock_irqsave(&g_pmglobals.domain_lock); /* Protect domain list access */
 		for (entry = dq_peek(&g_pmglobals.suspended_domains); entry != NULL; entry = dq_next(entry)) {
 			domain = (FAR struct pm_domain_s *)entry;
 			if (domain->suspend_count != 0) {
 				domain->blocking_board_sleep_ticks++;
 			}
 		}
-		leave_critical_section(flags);
+		spin_unlock_irqrestore(&g_pmglobals.domain_lock, flags);
 	}
 }
 
@@ -304,7 +304,7 @@ int pm_metrics(int milliseconds)
 		return ERROR;
 	}
 
-	flags = enter_critical_section();
+	flags = spin_lock_irqsave(&g_pmglobals.domain_lock);
 
 	/* PM Metrics Initialization */
 	for (index = 0; index < PM_COUNT; index++) {
@@ -321,13 +321,13 @@ int pm_metrics(int milliseconds)
 		n_domains++;
 	}
 	g_pm_metrics_running = true;
-	leave_critical_section(flags);
+	spin_unlock_irqrestore(&g_pmglobals.domain_lock, flags);
 
 	/* Suspend for given time interval */
 	pm_sleep(TICK2MSEC(MSEC2TICK(milliseconds) - (clock_systimer() - start_time)));
 
 	/* PM Metrics post calculations for consistent result */
-	flags = enter_critical_section();
+	flags = spin_lock_irqsave(&g_pmglobals.domain_lock);
 	g_pm_metrics_running = false;
 	end_time = clock_systimer();
 
@@ -340,7 +340,7 @@ int pm_metrics(int milliseconds)
 	}
 	n_domains = g_pmglobals.ndomains; /* Get final count of domains */
 	g_pm_metrics->state_metrics.state_accum_ticks[g_pmglobals.state] += end_time - g_pm_metrics->state_metrics.stime;
-	leave_critical_section(flags);
+	spin_unlock_irqrestore(&g_pmglobals.domain_lock, flags);
 	/* Show PM Metrics Results */
 	pm_print_metrics((double)(end_time - start_time), n_domains);
 	/* Free allocated memory */
