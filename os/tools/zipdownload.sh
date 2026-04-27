@@ -76,7 +76,9 @@ if [ ! -f ${CONFIG} ]; then
 	echo "No .config file"
 	exit 1
 fi
-MAKEFILES="${OSDIR}/Makefile ${OSDIR}/Makefile.unix ${OSDIR}/Makefile.win ${OSDIR}/Directories.mk ${OSDIR}/FlatLibs.mk ${OSDIR}/LibTargets.mk ${OSDIR}/Make.defs ${OSDIR}/tools/Config.mk"
+# The packaged Windows downloader uses download.bat directly, so it does not
+# need the Windows build makefile.
+MAKEFILES="${OSDIR}/Makefile ${OSDIR}/Makefile.unix ${OSDIR}/Directories.mk ${OSDIR}/FlatLibs.mk ${OSDIR}/LibTargets.mk ${OSDIR}/Make.defs ${OSDIR}/tools/Config.mk"
 DOWNLOADSCRIPTS="${OSDIR}/tools/download.sh ${OSDIR}/tools/download.bat"
 
 unset ROMFSIMG
