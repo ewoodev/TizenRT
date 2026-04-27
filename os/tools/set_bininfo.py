@@ -37,8 +37,6 @@ def save_bininfo(bin_name) :
             f.write('APP1_BIN_NAME=' + bin_name + '\n')
         elif ("app2" in bin_name) :
             f.write('APP2_BIN_NAME=' + bin_name + '\n')
-        elif ("user_" in bin_name) :
-            f.write('USER_BIN_NAME=' + bin_name + '\n')
         elif ("common" in bin_name) :
             f.write('COMMON_BIN_NAME=' + bin_name + '\n')
         elif ("resource" in bin_name) :
@@ -85,14 +83,6 @@ if util.check_config_existence(cfg_file, 'CONFIG_SUPPORT_COMMON_BINARY') == True
     COMMON_BIN_VER = util.get_value_from_file(cfg_file, "CONFIG_COMMON_BINARY_VERSION=").replace('"','').rstrip('\n').strip()
     COMMON_BIN_NAME = 'common_' + BOARD_TYPE + '_' + COMMON_BIN_VER
     save_bininfo(COMMON_BIN_NAME + '.' + TARGET_EXT_NAME)
-
-# Set the xip user bundle name as "user_[board]_[version]"
-if util.check_config_existence(cfg_file, 'CONFIG_APP_BINARY_SEPARATION') == True and \
-        util.check_config_existence(cfg_file, 'CONFIG_XIP_ELF') == True and \
-        util.check_config_existence(cfg_file, 'CONFIG_BOARD_BUILD_DATE') == True:
-    USER_BIN_VER = util.get_value_from_file(cfg_file, "CONFIG_BOARD_BUILD_DATE=").replace('"', '').rstrip("\n").strip()
-    USER_BIN_NAME = 'user_' + BOARD_TYPE + '_' + USER_BIN_VER
-    save_bininfo(USER_BIN_NAME + '.' + TARGET_EXT_NAME)
 
 # Set the resource bin name as "resource_[board]_[version]"
 if util.check_config_existence(cfg_file, 'CONFIG_RESOURCE_FS') == True :
