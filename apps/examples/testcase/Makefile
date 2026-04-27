@@ -94,14 +94,10 @@ CXXOBJS		= $(CXXSRCS:$(CXXEXT)=$(OBJEXT))
 SRCS		= $(ASRCS) $(CSRCS) $(CXXSRCS)
 OBJS		= $(AOBJS) $(COBJS) $(CXXOBJS)
 
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-BIN		= $(APPDIR)\libapps$(LIBEXT)
-else
 ifeq ($(WINTOOL),y)
   BIN		= $(APPDIR)\\libapps$(LIBEXT)
 else
   BIN		= $(APPDIR)/libapps$(LIBEXT)
-endif
 endif
 
 # Build targets

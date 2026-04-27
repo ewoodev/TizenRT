@@ -105,9 +105,6 @@ OBJS = $(AOBJS) $(COBJS)
 
 ARCH_SRCDIR = $(TOPDIR)/arch/$(CONFIG_ARCH)/src
 BOARD_SRCDIR = $(TOPDIR)/board
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-  CFLAGS += -I$(ARCH_SRCDIR)\chip -I$(ARCH_SRCDIR)\common -I$(ARCH_SRCDIR)\armv7-m
-else
 ifeq ($(WINTOOL),y)
   CFLAGS += -I "${shell cygpath -w $(ARCH_SRCDIR)/chip}"
   CFLAGS += -I "${shell cygpath -w $(ARCH_SRCDIR)/common}"
@@ -118,7 +115,6 @@ else
   CFLAGS += -I$(ARCH_SRCDIR)/common
   CFLAGS += -I$(ARCH_SRCDIR)/armv7-m
   CFLAGS += -I$(BOARD_SRCDIR)/common
-endif
 endif
 
 all: libboard$(LIBEXT)

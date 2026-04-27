@@ -82,14 +82,10 @@ ifneq ($(CONFIG_BUILD_KERNEL),y)
 OBJS		+= $(MAINOBJ)
 endif
 
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-BIN		= $(APPDIR)\libapps$(LIBEXT)
-else
 ifeq ($(WINTOOL),y)
   BIN		= $(APPDIR)\\libapps$(LIBEXT)
 else
   BIN		= $(APPDIR)/libapps$(LIBEXT)
-endif
 endif
 
 CONFIG_EXAMPLES_SPEECH_DETECTOR_TEST_PROGNAME ?= speech_detector_test$(EXEEXT)

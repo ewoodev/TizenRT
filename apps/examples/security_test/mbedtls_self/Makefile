@@ -40,14 +40,10 @@ ifneq ($(CONFIG_BUILD_KERNEL),y)
   OBJS += $(MAINOBJ)
 endif
 
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-  BIN = $(APPDIR)\libapps$(LIBEXT)
-else
 ifeq ($(WINTOOL),y)
   BIN = $(APPDIR)\\libapps$(LIBEXT)
 else
   BIN = $(APPDIR)/libapps$(LIBEXT)
-endif
 endif
 ifeq ($(WINTOOL),y)
   INSTALL_DIR = "${shell cygpath -w $(BIN_DIR)}"

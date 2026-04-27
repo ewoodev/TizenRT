@@ -108,7 +108,6 @@ config ARMV8M_TOOLCHAIN_ATOLLIC
 
 config ARMV8M_TOOLCHAIN_BUILDROOT
 	bool "Buildroot (Cygwin or Linux)"
-	depends on !WINDOWS_NATIVE
 	select ARCH_TOOLCHAIN_GNU
 
 config ARMV8M_TOOLCHAIN_CODEREDL
@@ -150,7 +149,6 @@ config ARMV8M_TOOLCHAIN_GNU_EABIW
 
 config ARMV8M_TOOLCHAIN_CLANGL
 	bool "Generic Clang toolchain under Linux (or other POSIX environment)"
-	depends on !WINDOWS_NATIVE
 	select ARCH_TOOLCHAIN_GNU
 	---help---
 		This option should work for any modern GNU toolchain (GCC 4.5 or newer)
@@ -218,4 +216,3 @@ config ARMV8M_ITMSYSLOG_SWODIV
 	range 1 8192
 
 endif # ARMV8M_ITMSYSLOG
-

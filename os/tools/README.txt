@@ -32,7 +32,6 @@ Config.mk
   override these default definitions as necessary.
 
 configure.sh
-configure.bat
 configure.c, cfgparser.c, and cfgparser.h
 ------------
 
@@ -41,24 +40,8 @@ configure.c, cfgparser.c, and cfgparser.h
   OSX, or similar).  See build/configs/README.txt
 
   configure.c, cfgparser.c, and cfgparser.h can be used to build a work-alike
-  program as a replacement for configure.sh.  This work-alike program would be
-  used in environments that do not support Bash scripting (such as the Windows
-  native environment).
-
-  configure.bat is a small Windows batch file that can be used as a replacement
-  for configure.sh in a Windows native environment.  configure.bat is actually
-  just a thin layer that executes configure.exe if it is available. If
-  configure.exe is not available, then configure.bat will attempt to build it
-  first.
-
-  In order two build configure.exe from configure.c in the Windows native
-  environment, two assumptions are made:
-
-  1) You have installed the MinGW GCC toolchain.  This toolchain can be
-     downloaded from http://www.mingw.org/.  Tt is recommended the you not
-     install the optional MSYS components as there may be conflicts.
-  2) That path to bin bin/ directory containing mingw-gcc.exe must be
-     included in the PATH variable.
+  program as a replacement for configure.sh in POSIX environments where
+  invoking a compiled helper is preferable to running the shell script.
 
 discover.py
 -----------

@@ -62,18 +62,6 @@ DEPCONFIG = $(TOPDIR)$(DELIM).config
 CONFIG_TASH_CMDTASK_PRIORITY ?= 100
 CONFIG_TASH_CMDTASK_STACKSIZE ?= 4096
 
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-define REGISTER
-	$(Q) echo Register: $1
-	$(Q) if [ -z $5 ]; then \
-		$(Q) echo { "$1", $2, $3, ${CONFIG_TASH_CMDTASK_PRIORITY}, ${CONFIG_TASH_CMDTASK_STACKSIZE} }, > "$(BUILTIN_REGISTRY)$(DELIM)$2.mdat"; \
-	else \
-		$(Q) echo { "$1", $2, $3, $4, $5 }, > "$(BUILTIN_REGISTRY)$(DELIM)$2.mdat"; \
-	fi
-	$(Q) echo int $2(int argc, char *argv[]); > "$(BUILTIN_REGISTRY)$(DELIM)$2.pdat"
-	$(Q) touch $(BUILTIN_REGISTRY)$(DELIM).updated"
-endef
-else
 define REGISTER
 	$(Q) echo "Register: $1"
 	$(Q) if [ -z $5 ]; then \
@@ -84,30 +72,16 @@ define REGISTER
 	$(Q) echo "int $2(int argc, char *argv[]);" > "$(BUILTIN_REGISTRY)$(DELIM)$2.pdat"
 	$(Q) touch "$(BUILTIN_REGISTRY)$(DELIM).updated"
 endef
-endif
 
 # Tools
 
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-  MKKCONFIG = $(APPDIR)\tools\mkkconfig.bat
-else
-  MKKCONFIG = $(APPDIR)/tools/mkkconfig.sh
-endif
+MKKCONFIG = $(APPDIR)/tools/mkkconfig.sh
 
 ifeq ($(CONFIG_GRPC), y)
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-define DEL_GRPCFILES
-	if exist *.pb.h (del /f /q *.pb.h)
-	if exist *.pb.cc (del /f /q *.pb.cc)
-	if exist *.grpc.pb.h (del /f /q *.grpc.pb.h)
-	if exist *.grpc.pb.cc (del /f /q *.grpc.pb.cc)
-endef
-else
 define DEL_GRPCFILES
 	$(Q) rm -f *.pb.h
 	$(Q) rm -f *.pb.cc
 	$(Q) rm -f *.grpc.pb.h
 	$(Q) rm -f *.grpc.pb.cc
 endef
-endif
 endif

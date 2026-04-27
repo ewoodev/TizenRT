@@ -58,11 +58,7 @@ DELIM := $(strip /)
 # CFLAGS
 
 ifeq ($(CONFIG_BUILD_PROTECTED),y)
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-  KDEFINE = ${shell $(TOPDIR)\tools\define.bat "$(CC)" __KERNEL__}
-else
   KDEFINE = ${shell $(TOPDIR)/tools/define.sh "$(CC)" __KERNEL__}
-endif
 endif
 
 # include kernel header files to use kernel api during memory allocation failure

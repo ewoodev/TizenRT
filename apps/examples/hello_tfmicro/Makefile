@@ -55,14 +55,10 @@ ifneq ($(CONFIG_BUILD_KERNEL),y)
 OBJS		+= $(MAINOBJ)
 endif
 
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-BIN		= ..\..\libapps$(LIBEXT)
-else
 ifeq ($(WINTOOL),y)
   BIN		= ..\\..\\libapps$(LIBEXT)
 else
   BIN		= ../../libapps$(LIBEXT)
-endif
 endif
 
 CONFIG_EXAMPLES_HELLO_TFMICRO_PROGNAME ?= hello_tfmicro$(EXEEXT)

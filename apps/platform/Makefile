@@ -58,13 +58,8 @@ include $(APPDIR)/Make.defs
 # Tool stuff
 
 ifeq ($(DIRLINK),)
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-DIRLINK = $(TOPDIR)/tools/link.bat
-DIRUNLINK = $(TOPDIR)/tools/unlink.bat
-else
 DIRLINK = $(TOPDIR)/tools/link.sh
 DIRUNLINK = $(TOPDIR)/tools/unlink.sh
-endif
 endif
 
 ifeq ($(WINTOOL),y)
@@ -96,14 +91,10 @@ COBJS = $(patsubst %.c, bin/%$(OBJEXT), $(CSRCS))
 SRCS = $(ASRCS) $(CSRCS)
 OBJS = $(AOBJS) $(COBJS)
 
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-  BIN = ..\libapps$(LIBEXT)
-else
 ifeq ($(WINTOOL),y)
   BIN = ..\\libapps$(LIBEXT)
 else
   BIN = ../libapps$(LIBEXT)
-endif
 endif
 
 # Build targets

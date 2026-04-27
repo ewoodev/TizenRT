@@ -83,15 +83,7 @@ endif
 endif
 endif
 
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-  ARCH_SRCDIR = $(TOPDIR)\arch\$(CONFIG_ARCH)\src
-  TINYARA = "$(TOPDIR)\$(OUTBIN_DIR)\tinyara$(EXEEXT)"
-  CFLAGS += -I$(ARCH_SRCDIR)\chip
-  CFLAGS += -I$(ARCH_SRCDIR)\common
-  CFLAGS += -I$(ARCH_SRCDIR)\$(ARCH_SUBDIR)
-  CFLAGS += -I$(TOPDIR)\kernel
-else
-  ARCH_SRCDIR = $(TOPDIR)/arch/$(CONFIG_ARCH)/src
+ARCH_SRCDIR = $(TOPDIR)/arch/$(CONFIG_ARCH)/src
 ifeq ($(WINTOOL),y)
   TINYARA = "${shell cygpath -w $(TOPDIR)/$(OUTBIN_DIR)/tinyara$(EXEEXT)}"
   CFLAGS += -I "${shell cygpath -w $(ARCH_SRCDIR)/chip}"
@@ -104,7 +96,6 @@ else
   CFLAGS += -I$(ARCH_SRCDIR)/common
   CFLAGS += -I$(ARCH_SRCDIR)/$(ARCH_SUBDIR)
   CFLAGS += -I$(TOPDIR)/kernel
-endif
 endif
 
 # The "head" object
@@ -149,15 +140,7 @@ EXTRA_LIBS ?=
 EXTRA_LIBPATHS ?=
 LINKLIBS ?=
 
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-  BOARDMAKE = $(if $(wildcard .\board\Makefile),y,)
-  LIBPATHS += -L"$(TOPDIR)\$(LIBRARIES_DIR)"
-ifeq ($(BOARDMAKE),y)
-  LIBPATHS += -L"$(TOPDIR)\arch\$(CONFIG_ARCH)\src\board"
-endif
-
-else
-  BOARDMAKE = $(if $(wildcard ./board/Makefile),y,)
+BOARDMAKE = $(if $(wildcard ./board/Makefile),y,)
 
 ifeq ($(WINTOOL),y)
   LIBPATHS += -L"${shell cygpath -w "$(TOPDIR)/$(LIBRARIES_DIR)"}"
@@ -168,7 +151,6 @@ else
   LIBPATHS += -L"$(TOPDIR)/$(LIBRARIES_DIR)"
 ifeq ($(BOARDMAKE),y)
   LIBPATHS += -L"$(TOPDIR)/arch/$(CONFIG_ARCH)/src/board"
-endif
 endif
 endif
 
@@ -208,11 +190,9 @@ $(OUTBIN_DIR)/tinyara$(EXEEXT): $(HEAD_OBJ) board/libboard$(LIBEXT)
 	$(Q) $(LD) --entry=__start $(LDFLAGS) $(LIBPATHS) $(EXTRA_LIBPATHS) \
 		-o $(TINYARA) $(HEAD_OBJ) $(EXTRA_OBJS) \
 		--start-group $(LDLIBS) $(EXTRA_LIBS) $(LIBGCC) --end-group -Map $(TOPDIR)/../build/output/bin/tinyara.map
-ifneq ($(CONFIG_WINDOWS_NATIVE),y)
 	$(Q) $(NM) -l $(TINYARA) | \
 	grep -v '\(compiled\)\|\(\$(OBJEXT)$$\)\|\( [aUw] \)\|\(\.\.ng$$\)\|\(LASH[RL]DI\)' | \
 	sort > $(TOPDIR)/$(OUTBIN_DIR)/System.map
-endif
 
 # This is part of the top-level export target
 # Note that there may not be a head object if layout is handled

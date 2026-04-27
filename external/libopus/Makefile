@@ -103,14 +103,10 @@ COBJS = $(CSRCS:.c=$(OBJEXT))
 SRCS = $(ASRCS) $(CSRCS)
 OBJS = $(AOBJS) $(COBJS)
 
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-  BIN = ..\libexternal$(LIBEXT)
-else
 ifeq ($(WINTOOL),y)
   BIN = ..\\libexternal$(LIBEXT)
 else
   BIN = ../libexternal$(LIBEXT)
-endif
 endif
 
 all: .built

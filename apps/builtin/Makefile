@@ -64,14 +64,10 @@ COBJS		= $(CSRCS:.c=$(OBJEXT))
 SRCS		= $(ASRCS) $(CSRCS)
 OBJS		= $(AOBJS) $(COBJS)
 
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-  BIN		= ..\libapps$(LIBEXT)
-else
 ifeq ($(WINTOOL),y)
   BIN		= ..\\libapps$(LIBEXT)
 else
   BIN		= ../libapps$(LIBEXT)
-endif
 endif
 
 ROOTDEPPATH	= --dep-path .
@@ -96,31 +92,23 @@ builtin_list$(OBJEXT): builtin_list.h builtin_proto.h
 builtin_list.h: registry$(DELIM).updated
 	$(call DELFILE, .xx_builtin_list.h)
 	$(Q) touch .xx_builtin_list.h
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-	$(Q) (for /f %%G in ('dir /b registry\*.mdat') do ( type registry\%%G >> .xx_builtin_list.h )) || echo ""
-else
 	$(Q) ( \
 		filelist=`ls registry/*.mdat 2>/dev/null || echo ""`; \
 		for file in $$filelist; \
 			do cat $$file >> .xx_builtin_list.h; \
 		done; \
 	)
-endif
 	$(Q) mv .xx_builtin_list.h builtin_list.h
 
 builtin_proto.h: registry$(DELIM).updated
 	$(call DELFILE, .xx_builtin_proto.h)
 	$(Q) touch .xx_builtin_proto.h
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-	$(Q) (for /f %%G in ('dir /b registry\*.pdat') do ( type registry\%%G >> .xx_builtin_proto.h )) || echo ""
-else
 	$(Q) ( \
 		filelist=`ls registry/*.pdat 2>/dev/null || echo ""`; \
 		for file in $$filelist; \
 			do cat $$file >> .xx_builtin_proto.h; \
 		done; \
 	)
-endif
 	$(Q) mv .xx_builtin_proto.h builtin_proto.h
 
 .built: $(OBJS)

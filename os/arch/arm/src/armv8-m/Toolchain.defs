@@ -186,9 +186,7 @@ ifeq ($(CONFIG_ARMV8M_TOOLCHAIN),ATOLLIC)
       ARCHCPUFLAGS = -mcpu=cortex-m55 -mthumb -mcmse -mfloat-abi=soft
     endif
   endif
-  ifneq ($(CONFIG_WINDOWS_NATIVE),y)
-    WINTOOL = y
-  endif
+  WINTOOL = y
 endif
 
 # TinyARA buildroot under Linux or Cygwin
@@ -262,9 +260,7 @@ ifeq ($(CONFIG_ARMV8M_TOOLCHAIN),CODEREDW)
       ARCHCPUFLAGS = -mcpu=cortex-m55 -mthumb -mcmse -mfloat-abi=soft
     endif
   endif
-  ifneq ($(CONFIG_WINDOWS_NATIVE),y)
-    WINTOOL = y
-  endif
+  WINTOOL = y
 endif
 
 # CodeSourcery under Linux
@@ -307,9 +303,7 @@ ifeq ($(CONFIG_ARMV8M_TOOLCHAIN),CODESOURCERYW)
       ARCHCPUFLAGS = -mcpu=cortex-m55 -mthumb -mcmse -mfloat-abi=soft
     endif
   endif
-  ifneq ($(CONFIG_WINDOWS_NATIVE),y)
-    WINTOOL = y
-  endif
+  WINTOOL = y
 endif
 
 # devkitARM under Windows
@@ -317,9 +311,7 @@ endif
 ifeq ($(CONFIG_ARMV8M_TOOLCHAIN),DEVKITARM)
   CROSSDEV ?= arm-eabi-
   ARCROSSDEV ?= arm-eabi-
-  ifneq ($(CONFIG_WINDOWS_NATIVE),y)
-    WINTOOL = y
-  endif
+  WINTOOL = y
   ifeq ($(CONFIG_ARCH_CORTEXM33),y)
     ARCHCPUFLAGS = -mcpu=cortex-m33 -mthumb -mcmse -mfloat-abi=soft
   else ifeq ($(CONFIG_ARCH_CORTEXM55),y)
@@ -368,9 +360,7 @@ ifeq ($(CONFIG_ARMV8M_TOOLCHAIN),GNU_EABIW)
       ARCHCPUFLAGS = -mcpu=cortex-m55 -mthumb -mcmse -mfloat-abi=soft
     endif
   endif
-  ifneq ($(CONFIG_WINDOWS_NATIVE),y)
-    WINTOOL = y
-  endif
+  WINTOOL = y
 endif
 
 # Clang toolchain on OS X, Linux or any typical Posix system
@@ -399,8 +389,6 @@ endif
 ifeq ($(CONFIG_ARMV8M_TOOLCHAIN),RAISONANCE)
   CROSSDEV ?= arm-none-eabi-
   ARCROSSDEV ?= arm-none-eabi-
-  ifneq ($(CONFIG_WINDOWS_NATIVE),y)
-    WINTOOL = y
-  endif
+  WINTOOL = y
   ARCHCPUFLAGS = $(TOOLCHAIN_MCPU) -mthumb $(TOOLCHAIN_MFLOAT)
 endif

@@ -136,7 +136,6 @@ choice
 config ARMV7A_TOOLCHAIN_BUILDROOT
 	bool "Buildroot (Cygwin or Linux)"
 	select ARCH_TOOLCHAIN_GNU
-	depends on !WINDOWS_NATIVE
 
 config ARMV7A_TOOLCHAIN_GNU_EABI
 	bool "Generic GNU EABI toolchain"

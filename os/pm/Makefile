@@ -49,18 +49,6 @@ OBJS = $(AOBJS) $(COBJS)
 BIN = libpm$(LIBEXT)
 
 
-#ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-#  CFLAGS += -I$(ARCH_SRCDIR)\board
-#else
-#  ARCH_SRCDIR = $(TOPDIR)/arch/$(CONFIG_ARCH)/src
-#ifeq ($(WINTOOL),y)
-#  CFLAGS += -I "${shell cygpath -w $(ARCH_SRCDIR)/board}"
-#else
-#  CFLAGS += -I$(ARCH_SRCDIR)/board
-#endif
-#endif
-
-
 all: $(BIN)
 .PHONY: depend clean distclean
 

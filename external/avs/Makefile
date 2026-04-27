@@ -165,14 +165,10 @@ CXXOBJS		= $(CXXSRCS:.cpp=$(AVS_OBJEXT))
 SRCS		= $(ASRCS) $(CSRCS) $(CXXSRCS)
 OBJS		= $(AOBJS) $(COBJS) $(CXXOBJS)
 
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-  BIN		= ..\libexternal$(LIBEXT)
-else
 ifeq ($(WINTOOL),y)
   BIN		= ..\\libexternal$(LIBEXT)
 else
   BIN		= ../libexternal$(LIBEXT)
-endif
 endif
 
 DEPPATH	= --dep-path .

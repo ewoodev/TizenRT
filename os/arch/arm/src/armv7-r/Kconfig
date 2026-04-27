@@ -147,7 +147,6 @@ choice
 
 config ARMV7R_TOOLCHAIN_BUILDROOT
 	bool "Buildroot (Cygwin or Linux)"
-	depends on !WINDOWS_NATIVE
 
 config ARMV7R_TOOLCHAIN_CODESOURCERYL
 	bool "CodeSourcery GNU toolchain under Linux"

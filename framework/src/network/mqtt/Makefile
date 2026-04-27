@@ -90,14 +90,10 @@ COBJS = $(CSRCS:.c=$(OBJEXT))
 SRCS = $(ASRCS) $(CSRCS)
 OBJS = $(AOBJS) $(COBJS)
 
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-  BIN = ..\..\libapps$(LIBEXT)
-else
 ifeq ($(WINTOOL),y)
   BIN = ..\\..\\libapps$(LIBEXT)
 else
   BIN = ../../libapps$(LIBEXT)
-endif
 endif
 
 ROOTDEPPATH = --dep-path .

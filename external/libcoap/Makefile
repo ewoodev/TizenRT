@@ -78,14 +78,10 @@ COBJS = $(patsubst %.c, libcoap_%$(OBJEXT), $(CSRCS))
 SRCS = $(ASRCS) $(CSRCS)
 OBJS = $(AOBJS) $(COBJS)
 
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-  BIN = ..\libexternal$(LIBEXT)
-else
 ifeq ($(WINTOOL),y)
   BIN = ..\\libexternal$(LIBEXT)
 else
   BIN = ../libexternal$(LIBEXT)
-endif
 endif
 
 DEPPATH = --dep-path .

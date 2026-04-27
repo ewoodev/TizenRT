@@ -110,36 +110,6 @@ endef
 #   MOVEFILE - Move one file
 #   CLEAN    - Default clean target
 
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-
-DELIM = $(strip \)
-
-define ARCHIVE
-	@echo AR: $2
-	$(Q) $(AR) $1 $(2)
-endef
-
-define DELFILE
-	$(Q) if exist $1 (del /f /q $1)
-endef
-
-define DELDIR
-  $(Q) if exist $(1) (rmdir /q /s $(1))
-endef
-
-define MOVEFILE
-	$(Q) if exist $1 (move /Y $1 $2)
-endef
-
-define CLEAN
-	$(Q) if exist *$(OBJEXT) (del /f /q *$(OBJEXT))
-	$(Q) if exist *$(LIBEXT) (del /f /q *$(LIBEXT))
-	$(Q) if exist *~ (del /f /q *~)
-	$(Q) if exist (del /f /q  .*.swp)
-endef
-
-else
-
 DELIM = $(strip /)
 
 define ARCHIVE
@@ -162,8 +132,6 @@ endef
 define CLEAN
 	$(Q) rm -f *$(OBJEXT) *$(LIBEXT) *~ .*.swp
 endef
-
-endif
 
 # Tool related definitions
 # Compiler

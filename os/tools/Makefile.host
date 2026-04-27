@@ -57,23 +57,12 @@ include ${TOPDIR}/tools/Config.mk
 # Define HOSTCC on the make command line if it differs from these defaults
 # Define HOSTCFLAGS with -g on the make command line to build debug versions
 
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-
-# In the Windows native environment, the MinGW GCC compiler is assumed
-
-HOSTCC ?= mingw-gcc.exe
-HOSTCFLAGS ?= -O2 -Wall -Wstrict-prototypes -Wshadow -I. -DCONFIG_WINDOWS_NATIVE=y
-
-else
-
 # GCC is assumed in the POSIX environment.
 # strtok_r is used in some tools, but does not seem to be available in
 # the MinGW environment.
 
 HOSTCC ?= gcc
 HOSTCFLAGS ?= -O2 -Wall -Wstrict-prototypes -Wshadow -I. -DHAVE_STRTOK_C
-
-endif
 
 # Targets
 
@@ -190,7 +179,5 @@ clean:
 	$(call DELFILE, mkversion.exe)
 	$(call DELFILE, bdf-converter)
 	$(call DELFILE, bdf-converter.exe)
-ifneq ($(CONFIG_WINDOWS_NATIVE),y)
 	$(Q) rm -rf *.dSYM
-endif
 	$(call CLEAN)

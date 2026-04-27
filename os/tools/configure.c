@@ -83,13 +83,7 @@
  * Private Data
  ****************************************************************************/
 
-#ifdef CONFIG_WINDOWS_NATIVE
-static char g_delim = '\\';		/* Delimiter to use when forming paths */
-static bool g_winpaths = true;	/* True: Windows style paths */
-#else
 static char g_delim = '/';		/* Delimiter to use when forming paths */
-static bool g_winpaths = false;	/* False: POSIX style paths */
-#endif
 static bool g_debug = false;	/* Enable debug output */
 
 static const char *g_appdir = NULL;	/* Relative path to the applicatin directory */
@@ -105,9 +99,7 @@ static char *g_verstring = "0.0";	/* Version String */
 static char *g_srcdefconfig = NULL;	/* Source defconfig file */
 static char *g_srcmakedefs = NULL;	/* Source Make.defs file */
 static char *g_srcsetenvsh = NULL;	/* Source setenv.sh file (optional) */
-static char *g_srcsetenvbat = NULL;	/* Source setenv.bat file (optional) */
 
-static bool g_winnative = false;	/* True: Windows native configuration */
 static bool g_needapppath = true;	/* Need to add app path to the .config file */
 
 static char g_buffer[BUFFER_SIZE];	/* Scratch buffer for forming full paths */
@@ -121,7 +113,7 @@ static struct variable_s *g_versionvars = NULL;
 
 static void show_usage(const char *progname, int exitcode)
 {
-	fprintf(stderr, "\nUSAGE: %s  [-d] [-w] [-l] [-h] [-a <app-dir>] <board-name>[%c<config-name>]\n", progname, g_delim);
+	fprintf(stderr, "\nUSAGE: %s  [-d] [-h] [-a <app-dir>] <board-name>[%c<config-name>]\n", progname, g_delim);
 	fprintf(stderr, "\nWhere:\n");
 	fprintf(stderr, "  <board-name>:\n");
 	fprintf(stderr, "    Identifies the board.  This must correspond to a board directory\n");
@@ -132,24 +124,6 @@ static void show_usage(const char *progname, int exitcode)
 	fprintf(stderr, "    under tinyara%cconfigs%c<board-name>%c.\n", g_delim, g_delim, g_delim);
 	fprintf(stderr, "  <-d>:\n");
 	fprintf(stderr, "    Enables debug output\n");
-	fprintf(stderr, "  <-w>:\n");
-#ifdef CONFIG_WINDOWS_NATIVE
-	fprintf(stderr, "    Informs the tool that it should use Windows style paths like C:\\Program Files\n");
-	fprintf(stderr, "    instead of POSIX style paths are used like /usr/local/bin.  Windows\n");
-	fprintf(stderr, "    style paths are used by default.\n");
-#else
-	fprintf(stderr, "    Informs the tool that it should use Windows style paths like C:\\Program Files.\n");
-	fprintf(stderr, "    By default, POSIX style paths like /usr/local/bin are used.\n");
-#endif
-	fprintf(stderr, "  <-l>:\n");
-#ifdef CONFIG_WINDOWS_NATIVE
-	fprintf(stderr, "    Informs the tool that it should use POSIX style paths like /usr/local/bin.\n");
-	fprintf(stderr, "    By default, Windows style paths like C:\\Program Files are used.\n");
-#else
-	fprintf(stderr, "    Informs the tool that it should use POSIX style paths like /usr/local/bin\n");
-	fprintf(stderr, "    instead of Windows style paths like C:\\Program Files are used.  POSIX\n");
-	fprintf(stderr, "    style paths are used by default.\n");
-#endif
 	fprintf(stderr, "  -a <app-dir>:\n");
 	fprintf(stderr, "    Informs the configuration tool where the application build\n");
 	fprintf(stderr, "    directory.  This is a relative path from the top-level tinyara\n");
@@ -181,7 +155,7 @@ static void parse_args(int argc, char **argv)
 
 	g_debug = false;
 
-	while ((ch = getopt(argc, argv, ":a:dwlh")) > 0) {
+	while ((ch = getopt(argc, argv, ":a:dh")) > 0) {
 		switch (ch) {
 		case 'a':
 			g_appdir = optarg;
@@ -189,16 +163,6 @@ static void parse_args(int argc, char **argv)
 
 		case 'd':
 			g_debug = true;
-			break;
-
-		case 'w':
-			g_delim = '/';
-			g_winpaths = true;
-			break;
-
-		case 'l':
-			g_delim = '\\';
-			g_winpaths = false;
 			break;
 
 		case 'h':
@@ -563,14 +527,6 @@ static void check_configuration(void)
 {
 	struct variable_s *var;
 
-	/* Check if this is a Windows native configuration */
-
-	var = find_variable("CONFIG_WINDOWS_NATIVE", g_configvars);
-	if (var && var->val && strcmp("y", var->val) == 0) {
-		debug("check_configuration: Windows native configuration\n");
-		g_winnative = true;
-	}
-
 	/* All configurations must provide a defconfig and Make.defs file */
 
 	snprintf(g_buffer, BUFFER_SIZE, "%s%cdefconfig", g_configpath, g_delim);
@@ -595,21 +551,10 @@ static void check_configuration(void)
 
 	g_srcmakedefs = strdup(g_buffer);
 
-	/* Windows native configurations may provide setenv.bat; POSIX
-	 * configurations may provide a setenv.sh.
-	 */
-
-	if (g_winnative) {
-		snprintf(g_buffer, BUFFER_SIZE, "%s%csetenv.bat", g_configpath, g_delim);
-		debug("check_configuration: Checking %s\n", g_buffer);
-		if (verify_file(g_buffer))
-			g_srcsetenvbat = strdup(g_buffer);
-	} else {
-		snprintf(g_buffer, BUFFER_SIZE, "%s%csetenv.sh", g_configpath, g_delim);
-		debug("check_configuration: Checking %s\n", g_buffer);
-		if (verify_file(g_buffer))
-			g_srcsetenvsh = strdup(g_buffer);
-	}
+	snprintf(g_buffer, BUFFER_SIZE, "%s%csetenv.sh", g_configpath, g_delim);
+	debug("check_configuration: Checking %s\n", g_buffer);
+	if (verify_file(g_buffer))
+		g_srcsetenvsh = strdup(g_buffer);
 }
 
 static void copy_file(const char *srcpath, const char *destpath, mode_t mode)
@@ -668,14 +613,6 @@ static void copy_file(const char *srcpath, const char *destpath, mode_t mode)
 	}
 }
 
-static void substitute(char *str, int ch1, int ch2)
-{
-	for (; *str; str++) {
-		if (*str == ch1)
-			*str = ch2;
-	}
-}
-
 static void configure(void)
 {
 	char *destconfig;
@@ -701,14 +638,6 @@ static void configure(void)
 		copy_file(g_srcsetenvsh, g_buffer, 0755);
 	}
 
-	/* Copy the setenv.bat file if have one and need one */
-
-	if (g_srcsetenvbat) {
-		snprintf(g_buffer, BUFFER_SIZE, "%s%csetenv.bat", g_topdir, g_delim);
-		debug("configure: Copying from %s to %s\n", g_srcsetenvbat, g_buffer);
-		copy_file(g_srcsetenvbat, g_buffer, 0644);
-	}
-
 	/* If we did not use the CONFIG_APPS_DIR that was in the defconfig config file,
 	 * then append the correct application information to the tail of the .config
 	 * file
@@ -716,25 +645,6 @@ static void configure(void)
 
 	if (g_needapppath) {
 		FILE *stream;
-		char *appdir = strdup(g_appdir);
-
-		/* One complexity is if we are using Windows paths, but the configuration
-		 * needs POSIX paths (or vice versa).
-		 */
-
-		if (g_winpaths != g_winnative) {
-			/* Not the same */
-
-			if (g_winpaths) {
-				/* Using Windows paths, but the configuration wants POSIX paths */
-
-				substitute(appdir, '\\', '/');
-			} else {
-				/* Using POSIX paths, but the configuration wants Windows paths */
-
-				substitute(appdir, '/', '\\');
-			}
-		}
 
 		/* Open the file for appending */
 
@@ -745,9 +655,8 @@ static void configure(void)
 		}
 
 		fprintf(stream, "\n# Application configuration\n\n");
-		fprintf(stream, "CONFIG_APPS_DIR=\"%s\"\n", appdir);
+		fprintf(stream, "CONFIG_APPS_DIR=\"%s\"\n", g_appdir);
 		fclose(stream);
-		free(appdir);
 	}
 
 	free(destconfig);

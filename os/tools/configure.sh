@@ -132,14 +132,6 @@ unset have_setenv
 if [ -r "${src_setenv}" ]; then
   dest_setenv=${TOPDIR}/setenv.sh
   have_setenv=y
-else
-  src_setenv="${WD}/setenv.bat"
-  if [ -r "${src_setenv}" ]; then
-    dest_setenv=${TOPDIR}/setenv.bat
-    have_setenv=y
-  else
-    unset src_setenv
-  fi
 fi
 
 src_config="${boardconfigpath}/defconfig"
@@ -159,13 +151,8 @@ if [ -r ${dest_config} ]; then
 fi
 
 # Extract values needed from the defconfig file.  We need:
-# (1) The CONFIG_WINDOWS_NATIVE setting to know it this is target for a
-#     native Windows (meaning that we want setenv.bat vs setenv.sh and we need
-#     to use backslashes in the CONFIG_APPS_DIR setting).
-# (2) The CONFIG_APPS_DIR setting to see if there is a configured location for the
+# The CONFIG_APPS_DIR setting to see if there is a configured location for the
 #     application directory.  This can be overridden from the command line.
-
-winnative=`grep CONFIG_WINDOWS_NATIVE= "${src_config}" | cut -d'=' -f2`
 
 defappdir=y
 if [ -z "${appdir}" ]; then
@@ -203,7 +190,6 @@ fi
 # For checking the apps dir path, we need a POSIX version of the relative path.
 
 posappdir=`echo "${appdir}" | sed -e 's/\\\\/\\//g'`
-winappdir=`echo "${appdir}" | sed -e 's/\\//\\\\/g'`
 
 # If appsdir was provided (or discovered) then make sure that the apps/
 # directory exists
@@ -239,11 +225,7 @@ if [ "X${defappdir}" = "Xy" ]; then
   echo "" >> "${dest_config}"
   echo "# Application configuration" >> "${dest_config}"
   echo "" >> "${dest_config}"
-  if [ "X${winnative}" = "Xy" ]; then
-    echo "CONFIG_APPS_DIR=\"$winappdir\"" >> "${dest_config}"
-  else
-    echo "CONFIG_APPS_DIR=\"$posappdir\"" >> "${dest_config}"
-  fi
+  echo "CONFIG_APPS_DIR=\"$posappdir\"" >> "${dest_config}"
 fi
 
 # Check necessary packages to build configured set

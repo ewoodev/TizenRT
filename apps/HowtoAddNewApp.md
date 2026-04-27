@@ -73,14 +73,10 @@ ifneq ($(CONFIG_BUILD_KERNEL),y)
   OBJS += $(MAINOBJ)
 endif
 
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-  BIN = ..\libapps$(LIBEXT)
-else
 ifeq ($(WINTOOL),y)
   BIN = ..\\libapps$(LIBEXT)
 else
   BIN = ../libapps$(LIBEXT)
-endif
 endif
 
 ifeq ($(WINTOOL),y)
@@ -177,14 +173,10 @@ Refer Builtin [README](builtin/README.md).
 #### Library information
 This specifies the library and its location into which the application would be built .
 ```
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-  BIN = ..\libapps$(LIBEXT)
-else
 ifeq ($(WINTOOL),y)
   BIN = ..\\libapps$(LIBEXT)
 else
   BIN = ../libapps$(LIBEXT)
-endif
 endif
 ```
 

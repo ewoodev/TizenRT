@@ -55,14 +55,10 @@ ifneq ($(CONFIG_BUILD_KERNEL),y)
   OBJS += $(MAINOBJ)
 endif
 
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-  BIN = ..\libexternal$(LIBEXT)
-else
 ifeq ($(WINTOOL),y)
   BIN = ..\\libexternal$(LIBEXT)
 else
   BIN = ../libexternal$(LIBEXT)
-endif
 endif
 
 all: .built

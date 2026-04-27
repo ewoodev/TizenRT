@@ -69,17 +69,8 @@ OBJEXT ?= .o
 LIBEXT ?= .a
 
 # DELIM - Path segment delimiter character
-#
-# Depends on this settings defined in board-specific defconfig file installed
-# at $(TOPDIR)/.config:
-#
-#   CONFIG_WINDOWS_NATIVE - Defined for a Windows native build
 
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-  DELIM = $(strip \)
-else
-  DELIM = $(strip /)
-endif
+DELIM = $(strip /)
 
 # INCDIR - Convert a list of directory paths to a list of compiler include
 #   directirves
@@ -95,16 +86,7 @@ endif
 #   TOPDIR - The path to the top level TinyAra directory in the form
 #     appropriate for the current build environment
 #
-# Depends on this settings defined in board-specific defconfig file installed
-# at $(TOPDIR)/.config:
-#
-#   CONFIG_WINDOWS_NATIVE - Defined for a Windows native build
-
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-  INCDIR = "$(TOPDIR)\tools\incdir.bat"
-else
-  INCDIR = "$(TOPDIR)/tools/incdir.sh"
-endif
+INCDIR = "$(TOPDIR)/tools/incdir.sh"
 
 # PREPROCESS - Default macro to run the C pre-processor
 # Example: $(call PREPROCESS, in-file, out-file)
@@ -198,22 +180,10 @@ LOCK_AR = flock /tmp/ar.lock
 #
 #   AR - The command to invoke the archiver (includes any options)
 #
-# Depends on this settings defined in board-specific defconfig file installed
-# at $(TOPDIR)/.config:
-#
-#   CONFIG_WINDOWS_NATIVE - Defined for a Windows native build
-
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-define ARCHIVE
-	@echo AR: $2
-	$(Q) $(LOCK_AR) $(AR) $1 $(2)
-endef
-else
 define ARCHIVE
 	@echo "AR: $2"
 	$(Q) $(LOCK_AR) $(AR) $1 $(2) || { echo "$(AR) $1 FAILED!" ; exit 1 ; }
 endef
-endif
 
 # PRELINK - Prelink a list of files
 # This is useful when files were compiled with fvisibility=hidden.
@@ -231,70 +201,31 @@ endif
 #   LD - The command to invoke the linker (includes any options)
 #    OBJCOPY - The command to invoke the object cop (includes any options)
 #
-# Depends on this settings defined in board-specific defconfig file installed
-# at $(TOPDIR)/.config:
-#
-#   CONFIG_WINDOWS_NATIVE - Defined for a Windows native build
-
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-define PRELINK
-	@echo PRELINK: $1
-	$(Q) $(LD) -Ur -o $1 $2 && $(OBJCOPY) --localize-hidden $1
-endef
-else
 define PRELINK
 	@echo "PRELINK: $1"
 	$(Q) $(LD) -Ur -o $1 $2 && $(OBJCOPY) --localize-hidden $1
 endef
-endif
 
 # DELFILE - Delete one file
 
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-define DELFILE
-	$(Q) if exist $1 (del /f /q $1)
-endef
-else
 define DELFILE
 	$(Q) rm -f $1
 endef
-endif
 
 # DELDIR - Delete one directory
 
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-define DELDIR
-	$(Q) if exist $1 (rmdir /q /s $1)
-endef
-else
 define DELDIR
 	$(Q) rm -rf $1
 endef
-endif
 
 # MOVEFILE - Move one file
 
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-define MOVEFILE
-	$(Q) if exist $1 (move /Y $1 $2)
-endef
-else
 define MOVEFILE
 	$(Q) mv -f $1 $2
 endef
-endif
 
 # CLEAN - Default clean target
 
-ifeq ($(CONFIG_WINDOWS_NATIVE),y)
-define CLEAN
-	$(Q) if exist *$(OBJEXT) (del /f /q *$(OBJEXT))
-	$(Q) if exist *$(LIBEXT) (del /f /q *$(LIBEXT))
-	$(Q) if exist *~ (del /f /q *~)
-	$(Q) if exist (del /f /q  .*.swp)
-endef
-else
 define CLEAN
 	$(Q) rm -f *$(OBJEXT) *$(LIBEXT) *~ .*.swp
 endef
-endif

@@ -163,13 +163,7 @@ tools/configure.sh
     cd ${TOPDIR}/tools
    ./configure.sh <board-name>/<config-dir>
 
-  There is an alternative Windows batch file that can be used in the
-  windows native enironment like:
-
-    cd ${TOPDIR}\tools
-    configure.bat <board-name>\<config-dir>
-
-  See tools/README.txt for more information about these scripts.
+  See tools/README.txt for more information about this script.
 
   And if your application directory is not in the standard loction (../apps
   or ../apps-<version>), then you should also specify the location of the
