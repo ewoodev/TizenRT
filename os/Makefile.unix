@@ -519,14 +519,27 @@ define COMPRESS_BIN
 endef
 endif
 
+ifeq ($(CONFIG_BINARY_SIGNING),y)
+define SIGN_APP_BIN
+	$(Q) $(call MAKE_USER_SIGNING,$(OUTBIN_DIR)/$1,$2,$1,)
+endef
+endif
+
+ifeq ($(CONFIG_RESOURCE_BINARY_SIGNING),y)
+define SIGN_RESOURCE_BIN
+	$(Q) $(call MAKE_USER_SIGNING,$(OUTBIN_DIR)/resourcefs.img,"resource",resourcefs.img,)
+endef
+endif
+
 # Prepare the app binary according to TizenRT requirement
-# Strip debug symbols, Compress and add binary header
+# Strip debug symbols, compress, sign and add binary header
 ifeq ($(CONFIG_ELF),y)
 define PREPARE_APP
 	$(Q) echo "Preparing final $(OUTBIN_DIR)/$1 binary"
 	$(Q) cp $(OUTBIN_DIR)/$1 $(OUTBIN_DIR)/$1_dbg
 	$(Q) $(call STRIP_DBG,$1)
 	$(Q) $(call COMPRESS_BIN,$1)
+	$(call SIGN_APP_BIN,$1,$2)
 	$(Q) $(TOPDIR)/tools/mkbinheader.py $(OUTBIN_DIR)/$1 $2 $3 $1 $4 $5 $6 $7 $8
 	$(Q) $(TOPDIR)/tools/mkchecksum.py $(OUTBIN_DIR)/$1
 	$(Q) cp $(OUTBIN_DIR)/$1 $(OUTBIN_DIR)/user
@@ -540,6 +553,7 @@ define PREPARE_APP
         $(Q) $(call STRIP_DBG,$1)
         $(Q) arm-none-eabi-objcopy -O binary $(OUTBIN_DIR)/$1 $(OUTBIN_DIR)/$1.bin
         $(Q) cp $(OUTBIN_DIR)/$1.bin $(OUTBIN_DIR)/$1
+        $(call SIGN_APP_BIN,$1,$2)
         $(Q) $(TOPDIR)/tools/mkbinheader.py $(OUTBIN_DIR)/$1 $2 $3 $1 $4 $5 $6 $7 $8
         $(Q) $(TOPDIR)/tools/mkchecksum.py $(OUTBIN_DIR)/$1
         $(Q) cp $(OUTBIN_DIR)/$1 $(OUTBIN_DIR)/user
@@ -570,12 +584,9 @@ endif
 endif
 ifeq ($(CONFIG_RESOURCE_FS),y)
 	$(Q) $(TOPDIR)/../tools/fs/mkromfsimg.sh $(TOPDIR)/../resource ../build/output/bin/resourcefs.img
+	$(call SIGN_RESOURCE_BIN)
 	$(Q) $(TOPDIR)/tools/mkbinheader.py $(OUTBIN_DIR)/resourcefs.img resource
 	$(Q) $(TOPDIR)/tools/mkchecksum.py $(OUTBIN_DIR)/resourcefs.img
-endif
-
-ifeq ($(CONFIG_BINARY_SIGNING),y)
-	$(Q) $(call MAKE_USER_SIGNING)
 endif
 
 	$(Q) echo "Start the Board Specific Work for Binary"

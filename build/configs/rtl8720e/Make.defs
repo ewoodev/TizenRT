@@ -236,7 +236,7 @@ define MAKE_SAMSUNG_HEADER
 endef
 
 define MAKE_USER_SIGNING
-  $(TOPDIR)/../build/configs/rtl8720e/rtl8720e_signing.sh user
+  $(TOPDIR)/../build/configs/rtl8720e/rtl8720e_signing.sh user $(1) $(2) $(3) $(4)
 endef
 
 define MAKE_BOOTPARAM

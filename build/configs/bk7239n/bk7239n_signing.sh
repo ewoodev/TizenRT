@@ -26,7 +26,16 @@ function kernel_binary_signing()
 function user_binary_signing()
 {
 	# Call script for user binary signing
-	echo "Not Support user binary signing"
+	local binary_path="$1"
+	local binary_type="${2:-user}"
+	local binary_name="$3"
+	local signing_output="$4"
+
+	if [ -n "${binary_path}" ]; then
+		echo "Not Support ${binary_type} binary signing: ${binary_path} ${binary_name} ${signing_output}"
+	else
+		echo "Not Support user binary signing"
+	fi
 }
 
 ############################################################################
@@ -37,7 +46,7 @@ function user_binary_signing()
 if [ "$1" == "kernel" ];then
 	kernel_binary_signing;
 elif [ "$1" == "user" ];then
-	user_binary_signing;
+	user_binary_signing "$2" "$3" "$4" "$5";
 else
 	echo "Error : Not supported Binary Type"
 	exit 1

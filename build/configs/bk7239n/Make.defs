@@ -321,7 +321,7 @@ define MAKE_BOOTPARAM
 endef
 
 define MAKE_USER_SIGNING
-  $(TOPDIR)/../build/configs/bk7239n/bk7239n_signing.sh user
+  $(TOPDIR)/../build/configs/bk7239n/bk7239n_signing.sh user $(1) $(2) $(3) $(4)
 endef
 
 define DOWNLOAD

@@ -298,7 +298,7 @@ define MAKE_BOOTPARAM
 endef
 
 define MAKE_USER_SIGNING
-  $(TOPDIR)/../build/configs/rtl8721csm/rtl8721csm_signing.sh user
+  $(TOPDIR)/../build/configs/rtl8721csm/rtl8721csm_signing.sh user $(1) $(2) $(3) $(4)
 endef
 
 define DOWNLOAD
