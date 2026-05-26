@@ -179,18 +179,6 @@ int binary_manager_read_header(int type, char *devpath, uint32_t part_addr, void
 	memset(header_data, 0, header_size);
 	crc_buffer = NULL;
 
-#ifdef CONFIG_BINARY_SIGNING
-	if (type == BINARY_USERAPP || type == BINARY_COMMON) {
-		read_offset += USER_SIGN_PREPEND_SIZE;
-	}
-#endif
-
-#ifdef CONFIG_RESOURCE_BINARY_SIGNING
-	if (type == BINARY_RESOURCE) {
-		read_offset += USER_SIGN_PREPEND_SIZE;
-	}
-#endif
-
 	/* Read the binary header */
 	ret = binary_manager_read_flash(type, true, devpath, part_addr, read_offset, (FAR uint8_t *)header_data, header_size);
 	if (ret != BINMGR_OK) {

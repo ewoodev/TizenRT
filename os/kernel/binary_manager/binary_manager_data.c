@@ -472,6 +472,9 @@ int binary_manager_verify_ubin(int bin_idx, uint8_t part_idx)
 	common_binary_header_t common_header_data;
 #endif
 	user_binary_header_t user_header_data;
+#ifdef CONFIG_BINARY_SIGNING
+	uint32_t signature_offset;
+#endif
 
 	if (bin_idx < 0 || bin_idx > binary_manager_get_ucount()) {
 		bmdbg("Invalid bin idx %d\n", bin_idx);
@@ -482,15 +485,6 @@ int binary_manager_verify_ubin(int bin_idx, uint8_t part_idx)
 		bmdbg("Invalid %s part idx %u, part count %u\n", BIN_NAME(bin_idx), part_idx, BIN_COUNT(bin_idx));
 		return BINMGR_INVALID_PARAM;
 	}
-
-#ifdef CONFIG_BINARY_SIGNING
-	ret = up_verify_usersignature(BIN_PARTADDR(bin_idx, part_idx));
-	if (ret != SIGNATURE_VAILD) {
-		bmdbg("Invalid Signature, name : %s, part idx %u, address : 0x%x\n", BIN_NAME(bin_idx), part_idx, BIN_PARTADDR(bin_idx, part_idx));
-		return BINMGR_NOT_FOUND;
-	}
-	bmvdbg("%s Signature Checking Success, part idx %u\n", BIN_NAME(bin_idx), part_idx);
-#endif
 
 	snprintf(devpath, BINARY_PATH_LEN, BINMGR_DEVNAME_FMT, BIN_PARTNUM(bin_idx, part_idx));
 #ifdef CONFIG_SUPPORT_COMMON_BINARY
@@ -506,6 +500,24 @@ int binary_manager_verify_ubin(int bin_idx, uint8_t part_idx)
 		bmdbg("Invalid binary candidate, name %s, part idx %u, devpath %s, ret %d\n", BIN_NAME(bin_idx), part_idx, devpath, ret);
 		return ret;
 	}
+
+#ifdef CONFIG_BINARY_SIGNING
+#ifdef CONFIG_SUPPORT_COMMON_BINARY
+	if (bin_idx == BM_CMNLIB_IDX) {
+		signature_offset = CHECKSUM_SIZE + common_header_data.header_size;
+	} else
+#endif
+	{
+		signature_offset = CHECKSUM_SIZE + user_header_data.header_size;
+	}
+
+	ret = up_verify_usersignature(BIN_PARTADDR(bin_idx, part_idx) + signature_offset);
+	if (ret != SIGNATURE_VAILD) {
+		bmdbg("Invalid Signature, name : %s, part idx %u, address : 0x%x\n", BIN_NAME(bin_idx), part_idx, BIN_PARTADDR(bin_idx, part_idx) + signature_offset);
+		return BINMGR_NOT_FOUND;
+	}
+	bmvdbg("%s Signature Checking Success, part idx %u\n", BIN_NAME(bin_idx), part_idx);
+#endif
 
 	bmvdbg("Valid binary candidate %s [%s], dev %d\n", BIN_NAME(bin_idx), GET_PARTNAME(part_idx), BIN_PARTNUM(bin_idx, part_idx));
 
@@ -690,6 +702,9 @@ int binary_manager_check_user_update(int bin_idx, bool check_updatable)
 	char devpath[BINARY_PATH_LEN];
 	common_binary_header_t common_header_data;
 	user_binary_header_t user_header_data;
+#ifdef CONFIG_BINARY_SIGNING
+	uint32_t signature_offset;
+#endif
 
 	if (bin_idx < 0 || bin_idx > binary_manager_get_ucount()) {
 		bmdbg("Invalid bin idx %d\n", bin_idx);
@@ -701,16 +716,6 @@ int binary_manager_check_user_update(int bin_idx, bool check_updatable)
 
 	bmvdbg("Checking [%d] current version %d, part_idx %d\n", bin_idx, running_ver, part_idx);
 
-#ifdef CONFIG_BINARY_SIGNING
-	/* Check signature */
-	ret = up_verify_usersignature(BIN_PARTADDR(bin_idx, part_idx));
-	if (ret == SIGNATURE_VAILD) {
-		bmvdbg("%s Signature Checking Success\n", BIN_NAME(bin_idx));
-	} else {
-		bmdbg("Invalid Signature, name : %s, address : 0x%x\n", BIN_NAME(bin_idx), BIN_PARTADDR(bin_idx, (BIN_USEIDX(bin_idx))));
-		return BINMGR_NOT_FOUND;
-	}
-#endif
 	snprintf(devpath, BINARY_PATH_LEN, BINMGR_DEVNAME_FMT, BIN_PARTNUM(bin_idx, part_idx));
 	if (bin_idx == BM_CMNLIB_IDX) {
 		ret = binary_manager_read_header(BINARY_COMMON, devpath, BIN_PARTADDR(bin_idx, part_idx), (void *)&common_header_data, check_updatable);
@@ -720,6 +725,22 @@ int binary_manager_check_user_update(int bin_idx, bool check_updatable)
 		version = user_header_data.bin_ver;
 	}
 	if (ret == BINMGR_OK) {		
+#ifdef CONFIG_BINARY_SIGNING
+		if (bin_idx == BM_CMNLIB_IDX) {
+			signature_offset = CHECKSUM_SIZE + common_header_data.header_size;
+		} else {
+			signature_offset = CHECKSUM_SIZE + user_header_data.header_size;
+		}
+
+		/* Check signature after reading the header because user signatures are placed after the binary header. */
+		ret = up_verify_usersignature(BIN_PARTADDR(bin_idx, part_idx) + signature_offset);
+		if (ret == SIGNATURE_VAILD) {
+			bmvdbg("%s Signature Checking Success\n", BIN_NAME(bin_idx));
+		} else {
+			bmdbg("Invalid Signature, name : %s, address : 0x%x\n", BIN_NAME(bin_idx), BIN_PARTADDR(bin_idx, part_idx) + signature_offset);
+			return BINMGR_NOT_FOUND;
+		}
+#endif
 		BIN_VER(bin_idx, part_idx) = version;
 		if (bin_idx != BM_CMNLIB_IDX) {
 			BIN_LOAD_PRIORITY(bin_idx, part_idx) = user_header_data.loading_priority;

@@ -168,6 +168,9 @@ static int binary_manager_load(int bin_idx)
 #ifdef CONFIG_USE_BP
 	bool need_update_bp = false;
 #endif
+#ifdef CONFIG_BINARY_SIGNING
+	uint32_t signature_offset;
+#endif
 
 	if (bin_idx < 0) {
 		bmdbg("Invalid bin idx %d\n", bin_idx);
@@ -196,27 +199,6 @@ static int binary_manager_load(int bin_idx)
 		if (!binp)
 #endif
 		{
-#ifdef CONFIG_BINARY_SIGNING
-			/* Check signature */
-			ret = up_verify_usersignature(BIN_PARTADDR(bin_idx, (BIN_USEIDX(bin_idx))));
-			if (ret == SIGNATURE_VAILD) {
-				bmdbg("%s Signature Checking Success\n", BIN_NAME(bin_idx));
-			} else {
-				bmdbg("Invalid Signature, name : %s, address : %p\n", BIN_NAME(bin_idx), BIN_PARTADDR(bin_idx, (BIN_USEIDX(bin_idx))));
-				if (--bin_count > 0) {
-					BIN_USEIDX(bin_idx) ^= 1;
-#ifdef CONFIG_USE_BP
-					need_update_bp = true;
-#endif
-					bmdbg("Try to read another partition %s\n", GET_PARTNAME(BIN_USEIDX(bin_idx)));
-					continue;
-				} else {
-					bmdbg("No valid binary %s\n", BIN_NAME(bin_idx));
-					break;
-				}
-			}
-#endif
-
 			/* Read header data and Check crc */
 			snprintf(devpath, BINARY_PATH_LEN, BINMGR_DEVNAME_FMT, BIN_PARTNUM(bin_idx, (BIN_USEIDX(bin_idx))));
 #ifdef CONFIG_SUPPORT_COMMON_BINARY
@@ -230,6 +212,36 @@ static int binary_manager_load(int bin_idx)
 				BIN_VER(bin_idx, BIN_USEIDX(bin_idx)) = user_header_data.bin_ver;
 			}
 			if (ret == BINMGR_OK) {
+#ifdef CONFIG_BINARY_SIGNING
+#ifdef CONFIG_SUPPORT_COMMON_BINARY
+				if (bin_idx == BM_CMNLIB_IDX) {
+					signature_offset = CHECKSUM_SIZE + common_header_data.header_size;
+				} else
+#endif
+				{
+					signature_offset = CHECKSUM_SIZE + user_header_data.header_size;
+				}
+
+				/* Check signature after reading the header because user signatures are placed after the binary header. */
+				ret = up_verify_usersignature(BIN_PARTADDR(bin_idx, (BIN_USEIDX(bin_idx))) + signature_offset);
+				if (ret == SIGNATURE_VAILD) {
+					bmdbg("%s Signature Checking Success\n", BIN_NAME(bin_idx));
+				} else {
+					BIN_VER(bin_idx, BIN_USEIDX(bin_idx)) = 0;
+					bmdbg("Invalid Signature, name : %s, address : %p\n", BIN_NAME(bin_idx), BIN_PARTADDR(bin_idx, (BIN_USEIDX(bin_idx))) + signature_offset);
+					if (--bin_count > 0) {
+						BIN_USEIDX(bin_idx) ^= 1;
+#ifdef CONFIG_USE_BP
+						need_update_bp = true;
+#endif
+						bmdbg("Try to read another partition %s\n", GET_PARTNAME(BIN_USEIDX(bin_idx)));
+						continue;
+					} else {
+						bmdbg("No valid binary %s\n", BIN_NAME(bin_idx));
+						break;
+					}
+				}
+#endif
 				bmdbg("%s Header Checking Success\n", BIN_NAME(bin_idx));
 			} else {
 				/* Clear version because of invalid binary */
@@ -255,6 +267,9 @@ static int binary_manager_load(int bin_idx)
 				load_attr.bin_ver = common_header_data.version;
 #ifdef CONFIG_BINARY_SIGNING
 				load_attr.offset += USER_SIGN_PREPEND_SIZE;
+				if (load_attr.bin_size > USER_SIGN_PREPEND_SIZE) {
+					load_attr.bin_size -= USER_SIGN_PREPEND_SIZE;
+				}
 #endif
 
 			} else
@@ -269,6 +284,9 @@ static int binary_manager_load(int bin_idx)
 				load_attr.offset = CHECKSUM_SIZE + user_header_data.header_size;
 #ifdef CONFIG_BINARY_SIGNING
 				load_attr.offset += USER_SIGN_PREPEND_SIZE;
+				if (load_attr.bin_size > USER_SIGN_PREPEND_SIZE) {
+					load_attr.bin_size -= USER_SIGN_PREPEND_SIZE;
+				}
 #endif
 				load_attr.bin_ver = user_header_data.bin_ver;
 			}

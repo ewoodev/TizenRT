@@ -42,6 +42,10 @@
 #define RESOURCE_DEC_PATH_LEN 24
 #define RESOURCE_DEC_SECTOR_SIZE 256
 
+#ifdef CONFIG_RESOURCE_BINARY_SIGNING
+#define RESOURCE_SIGN_OFFSET (RESOURCE_HEADER_SIZE - USER_SIGN_PREPEND_SIZE)
+#endif
+
 /* Data for Resource partitions */
 static binmgr_resinfo_t resource_info;
 
@@ -239,7 +243,7 @@ int binary_manager_verify_resource(uint8_t part_idx)
 	}
 
 #ifdef CONFIG_RESOURCE_BINARY_SIGNING
-	resource_start_address = resource_info.part_info[part_idx].address;
+	resource_start_address = resource_info.part_info[part_idx].address + RESOURCE_SIGN_OFFSET;
 	ret = up_verify_usersignature(resource_start_address);
 	if (ret != SIGNATURE_VAILD) {
 		bmdbg("Invalid Resource Signature, part idx %u, address : 0x%x\n", part_idx, resource_start_address);
@@ -329,8 +333,8 @@ int binary_manager_mount_resource(void)
 
 	for (int part_idx = 0; part_idx < resource_info.part_count; part_idx++) {
 #ifdef CONFIG_RESOURCE_BINARY_SIGNING
-		/* Check signature first at the start address */
-		resource_start_address = resource_info.part_info[part_idx].address;
+		/* Check signature before the aligned RomFS payload. */
+		resource_start_address = resource_info.part_info[part_idx].address + RESOURCE_SIGN_OFFSET;
 		ret = up_verify_usersignature(resource_start_address);
 		if (ret == SIGNATURE_VAILD) {
 			bmdbg("Resource Signature Checking Success, address : 0x%x\n", resource_start_address);
@@ -358,8 +362,8 @@ int binary_manager_mount_resource(void)
 	bin_count = resource_info.part_count;
 	do {
 #ifdef CONFIG_RESOURCE_BINARY_SIGNING
-		/* Check signature */
-		resource_start_address = resource_info.part_info[inuse_idx].address;
+		/* Check signature before the aligned RomFS payload. */
+		resource_start_address = resource_info.part_info[inuse_idx].address + RESOURCE_SIGN_OFFSET;
 		ret = up_verify_usersignature(resource_start_address);
 		if (ret == SIGNATURE_VAILD) {
 			bmdbg("Resource Signature Checking Success, address : 0x%x\n", resource_start_address);
@@ -394,11 +398,7 @@ int binary_manager_mount_resource(void)
 #else
 			snprintf(fs_devpath, sizeof(fs_devpath), BINMGR_DEVNAME_FMT, resource_info.part_info[inuse_idx].devnum);
 #endif
-#ifdef CONFIG_RESOURCE_BINARY_SIGNING
-			ret = mount(fs_devpath, RESOURCE_MOUNTPT, "romfs", MS_RDONLY, RESOURCE_HEADER_SIZE + USER_SIGN_PREPEND_SIZE);
-#else
-			ret = mount(fs_devpath, RESOURCE_MOUNTPT, "romfs", MS_RDONLY, RESOURCE_HEADER_SIZE);
-#endif
+			ret = mount(fs_devpath, RESOURCE_MOUNTPT, "romfs", MS_RDONLY, (FAR const void *)RESOURCE_HEADER_SIZE);
 			if (ret == OK) {
 				/* Update inuse index and resource version */
 				resource_info.inuse_idx = inuse_idx;
@@ -500,8 +500,8 @@ int binary_manager_check_resource_update(bool check_updatable)
 	inactive_partidx = resource_info.inuse_idx ^ 1;
 
 #ifdef CONFIG_RESOURCE_BINARY_SIGNING
-	/* Check signature */
-	resource_start_address = resource_info.part_info[inactive_partidx].address;
+	/* Check signature before the aligned RomFS payload. */
+	resource_start_address = resource_info.part_info[inactive_partidx].address + RESOURCE_SIGN_OFFSET;
 	ret = up_verify_usersignature(resource_start_address);
 	if (ret == SIGNATURE_VAILD) {
 		bmvdbg("Resource Signature Checking Success, address : 0x%x\n", resource_start_address);
