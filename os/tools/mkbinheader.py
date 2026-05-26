@@ -383,12 +383,15 @@ def make_common_binary_header():
 #
 # Resource binary header information :
 #
-# The total size is 4096 bytes but CRC value (4 bytes) will be prepended later.
-# So now it makes header with (4096 - 4) bytes.
-# +---------------------------------------------------------------------------------+
-# | Header size | Binary Version |  Binary Size |              Padding              |
-# |   (2bytes)  |    (4bytes)    |   (4bytes)   |         (4096 - 14 bytes)         |
-# +---------------------------------------------------------------------------------+
+# The total resource header block is 4096 bytes including the CRC value that
+# will be prepended later. So now it makes a block with (4096 - SIZE_OF_CRC)
+# bytes. The padding keeps the RomFS payload aligned to RESOURCE_HEADER_SIZE.
+# The maximum padding budget is (4096 - SIZE_OF_CRC), and the actual padding
+# subtracts the resource header fields and the optional secure header size.
+# +--------------------------------------------------------------------------------------------------+
+# | Header size | Binary Version | Binary Size | Padding for RESOURCE_HEADER_SIZE align | Secure HDR |
+# |   (2bytes)  |    (4bytes)    |  (4bytes)   |                variable                |  optional  |
+# +--------------------------------------------------------------------------------------------------+
 #
 # parameter information :
 #
@@ -399,14 +402,27 @@ def make_common_binary_header():
 def make_resource_binary_header():
 
     SIZE_OF_TOTAL = 4096
+    SIZE_OF_CRC = 4
     SIZE_OF_HEADERSIZE = 2
     SIZE_OF_BINVER = 4
     SIZE_OF_BINSIZE = 4
+    secure_header_size = 0
+
+    if util.check_config_existence(cfg_path, 'CONFIG_RESOURCE_BINARY_SIGNING=y') == True:
+        secure_header_size = util.get_value_from_file(cfg_path, "CONFIG_USER_SIGN_PREPEND_SIZE=")
+        if secure_header_size == 'None':
+            print("Error : Not Found config for resource secure header size, CONFIG_USER_SIGN_PREPEND_SIZE")
+            sys.exit(1)
+        secure_header_size = int(secure_header_size)
     
     # Calculate binary header size
     header_size = SIZE_OF_HEADERSIZE + SIZE_OF_BINVER + SIZE_OF_BINSIZE
 
-    remain_size = SIZE_OF_TOTAL - header_size - 4
+    remain_size = SIZE_OF_TOTAL - SIZE_OF_CRC - header_size - secure_header_size
+    if remain_size < 0:
+        print("Error : Resource secure header is too large, ", secure_header_size, ".")
+        print("        Please check CONFIG_USER_SIGN_PREPEND_SIZE and RESOURCE_HEADER_SIZE.")
+        sys.exit(1)
 
     # Get binary version
     bin_ver = util.get_value_from_file(cfg_path, "CONFIG_RESOURCE_BINARY_VERSION=").replace('"','').replace('\n','')
@@ -425,13 +441,18 @@ def make_resource_binary_header():
         file_size = fp.tell()
         fp.close()
 
+        if file_size < secure_header_size:
+            print("Error : Resource binary is smaller than secure header size, ", secure_header_size, ".")
+            sys.exit(1)
+        payload_size = file_size - secure_header_size
+
         fp = open(file_path, 'wb')
 
         # Generate binary with header data
         fp.write(struct.pack('H', header_size))
         fp.write(struct.pack('I', int(bin_ver)))
-        fp.write(struct.pack('I', file_size))
-        # Add padding for total size 4 Kbytes
+        fp.write(struct.pack('I', payload_size))
+        # Add padding to keep RomFS payload aligned to 4 Kbytes.
         fp.write(b'\xff' * remain_size)
         fp.write(data)
 
@@ -458,4 +479,3 @@ elif binary_type == 'resource' :
 else : # Not supported.
     print("Error : Not supported Binary Type")
     sys.exit(1)
-
