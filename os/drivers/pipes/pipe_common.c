@@ -120,6 +120,14 @@ static void pipecommon_semtake(sem_t *sem);
 
 static void pipecommon_semtake(sem_t *sem)
 {
+	int cancelstate;
+
+	/* Disable cancellation while waiting for the lock so that a pending
+	 * cancellation does not make sem_wait() return ECANCELED and trip the
+	 * ASSERT below. The saved state is restored once the lock is held.
+	 */
+
+	(void)task_setcancelstate(TASK_CANCEL_DISABLE, &cancelstate);
 	while (sem_wait(sem) != 0) {
 		/* The only case that an error should occur here is if the wait was
 		 * awakened by a signal.
@@ -127,6 +135,7 @@ static void pipecommon_semtake(sem_t *sem)
 
 		ASSERT(get_errno() == EINTR);
 	}
+	(void)task_setcancelstate(cancelstate, NULL);
 }
 
 /****************************************************************************

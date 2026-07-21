@@ -58,6 +58,7 @@
 #include <errno.h>
 #include <assert.h>
 #include <debug.h>
+#include <sched.h>
 
 #include "bch.h"
 
@@ -86,7 +87,16 @@
  ****************************************************************************/
 void bchlib_semtake(FAR struct bchlib_s *bch)
 {
+	int cancelstate;
+
 	/* Take the semaphore (perhaps waiting) */
+
+	/* Disable cancellation while waiting for the lock so that a pending
+	 * cancellation does not make sem_wait() return ECANCELED and trip the
+	 * ASSERT below. The saved state is restored once the lock is held.
+	 */
+
+	(void)task_setcancelstate(TASK_CANCEL_DISABLE, &cancelstate);
 	while (sem_wait(&bch->sem) != 0) {
 		/*
 		 * The only case that an error should occur here is if
@@ -94,4 +104,5 @@ void bchlib_semtake(FAR struct bchlib_s *bch)
 		 */
 		ASSERT(errno == EINTR);
 	}
+	(void)task_setcancelstate(cancelstate, NULL);
 }

@@ -64,6 +64,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <debug.h>
+#include <sched.h>
 
 #include <tinyara/kmalloc.h>
 #include <tinyara/fs/fs.h>
@@ -325,8 +326,16 @@ static uint32_t g_devinuse;
 
 static void usbhost_takesem(sem_t *sem)
 {
+	int cancelstate;
+
 	/* Take the semaphore (perhaps waiting) */
 
+	/* Disable cancellation while waiting for the lock so that a pending
+	 * cancellation does not make sem_wait() return ECANCELED and trip the
+	 * ASSERT below. The saved state is restored once the lock is held.
+	 */
+
+	(void)task_setcancelstate(TASK_CANCEL_DISABLE, &cancelstate);
 	while (sem_wait(sem) != 0) {
 		/* The only case that an error should occur here is if the wait was
 		 * awakened by a signal.
@@ -334,6 +343,7 @@ static void usbhost_takesem(sem_t *sem)
 
 		ASSERT(errno == EINTR);
 	}
+	(void)task_setcancelstate(cancelstate, NULL);
 }
 
 /****************************************************************************

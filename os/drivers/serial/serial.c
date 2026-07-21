@@ -64,6 +64,7 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <errno.h>
+#include <sched.h>
 #include <debug.h>
 #include <mqueue.h>
 
@@ -148,8 +149,17 @@ static const struct file_operations g_serialops = {
 
 static int uart_takesem(FAR sem_t *sem, bool errout)
 {
+	int cancelstate;
+
 	/* Loop, ignoring interrupts, until we have successfully acquired the semaphore */
 
+	/* Disable cancellation while waiting for the lock so that a pending
+	 * cancellation does not make sem_wait() return ECANCELED and trip the
+	 * ASSERT below. The saved state is restored once the lock is held or
+	 * before returning due to an interrupt.
+	 */
+
+	(void)task_setcancelstate(TASK_CANCEL_DISABLE, &cancelstate);
 	while (sem_wait(sem) != OK) {
 		/* The only case that an error should occur here is if the wait was awakened
 		 * by a signal.
@@ -162,9 +172,11 @@ static int uart_takesem(FAR sem_t *sem, bool errout)
 		 */
 
 		if (errout) {
+			(void)task_setcancelstate(cancelstate, NULL);
 			return -EINTR;
 		}
 	}
+	(void)task_setcancelstate(cancelstate, NULL);
 
 	return OK;
 }

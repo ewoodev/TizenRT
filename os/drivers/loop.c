@@ -72,6 +72,7 @@
 #include <semaphore.h>
 #include <debug.h>
 #include <errno.h>
+#include <sched.h>
 
 #include <tinyara/kmalloc.h>
 #include <tinyara/fs/fs.h>
@@ -140,9 +141,17 @@ static const struct block_operations g_bops = {
 static int loop_semtake(FAR struct loop_struct_s *dev)
 {
 	int ret;
+	int cancelstate;
 
 	/* Take the semaphore (perhaps waiting) */
 
+	/* Disable cancellation while waiting for the lock so that a pending
+	 * cancellation does not make sem_wait() return ECANCELED and trip the
+	 * ASSERT below. The saved state is restored once the lock is held or
+	 * before returning due to an interrupt.
+	 */
+
+	(void)task_setcancelstate(TASK_CANCEL_DISABLE, &cancelstate);
 	ret = sem_wait(&dev->sem);
 	if (ret < 0) {
 		int errcode = get_errno();
@@ -152,8 +161,10 @@ static int loop_semtake(FAR struct loop_struct_s *dev)
 		 */
 
 		ASSERT(errcode == EINTR);
+		(void)task_setcancelstate(cancelstate, NULL);
 		return -ret;
 	}
+	(void)task_setcancelstate(cancelstate, NULL);
 
 	return OK;
 }

@@ -49,6 +49,7 @@
 #include <errno.h>
 #include <debug.h>
 #include <fcntl.h>
+#include <sched.h>
 #include <tinyara/fs/fs.h>
 #include <tinyara/fs/ioctl.h>
 #include <tinyara/input/touchscreen.h>
@@ -100,14 +101,26 @@ static const struct file_operations g_touchdev_fileops = {
 
 static inline int touch_semtake(FAR sem_t *sem, bool errout)
 {
+	int cancelstate;
+
 	/* Take a count from the semaphore, possibly waiting */
+
+	/* Disable cancellation while waiting for the lock so that a pending
+	 * cancellation does not make sem_wait() return ECANCELED and trip the
+	 * ASSERT below. The saved state is restored once the lock is held or
+	 * before returning due to an interrupt.
+	 */
+
+	(void)task_setcancelstate(TASK_CANCEL_DISABLE, &cancelstate);
 	while (sem_wait(sem) != OK) {
 		/* EINTR is the only error that we expect */
 		ASSERT(get_errno() == EINTR);
 		if (errout) {
+			(void)task_setcancelstate(cancelstate, NULL);
 			return -EINTR;
 		}
 	}
+	(void)task_setcancelstate(cancelstate, NULL);
 	return OK;
 }
 
