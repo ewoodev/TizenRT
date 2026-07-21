@@ -148,9 +148,13 @@ bool enter_cancellation_point(void)
 	if (((tcb->flags & TCB_FLAG_NONCANCELABLE) == 0 &&
 	(tcb->flags & TCB_FLAG_CANCEL_DEFERRED) != 0) ||
 	tcb->cpcount > 0) {
-		/* Check if there is a pending cancellation */
+		/* Check if there is a pending cancellation.  A pending cancellation
+		 * must not be acted upon while cancellation is disabled: it stays
+		 * pending until task_setcancelstate() re-enables cancellation.
+		 */
 
-		if ((tcb->flags & TCB_FLAG_CANCEL_PENDING) != 0) {
+		if ((tcb->flags & TCB_FLAG_NONCANCELABLE) == 0 &&
+		(tcb->flags & TCB_FLAG_CANCEL_PENDING) != 0) {
 			/* Yes... return true (if we don't exit here) */
 
 			ret = true;
@@ -238,10 +242,13 @@ void leave_cancellation_point(void)
 			tcb->cpcount = 0;
 
 			/* If there is a pending cancellation then just exit according to
-			 * the type of the thread.
+			 * the type of the thread.  A pending cancellation is not acted
+			 * upon while cancellation is disabled: it stays pending until
+			 * task_setcancelstate() re-enables cancellation.
 			 */
 
-			if ((tcb->flags & TCB_FLAG_CANCEL_PENDING) != 0) {
+			if ((tcb->flags & TCB_FLAG_NONCANCELABLE) == 0 &&
+			(tcb->flags & TCB_FLAG_CANCEL_PENDING) != 0) {
 #ifndef CONFIG_DISABLE_PTHREAD
 				if ((tcb->flags & TCB_FLAG_TTYPE_MASK) == TCB_FLAG_TTYPE_PTHREAD) {
 					pthread_exit(PTHREAD_CANCELED);
