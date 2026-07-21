@@ -153,6 +153,7 @@ bool mm_takesemaphore(FAR struct mm_heap_s *heap)
 	}
 #endif
 	pid_t my_pid = getpid();
+	int cancelstate;
 
 	/* Do I already have the semaphore? */
 
@@ -164,6 +165,13 @@ bool mm_takesemaphore(FAR struct mm_heap_s *heap)
 		/* Take the semaphore (perhaps waiting) */
 
 		mvdbg("PID=%d taking\n", my_pid);
+
+		/* Disable cancellation while waiting for the lock so that a pending
+		 * cancellation does not make sem_wait() return ECANCELED and trip the
+		 * ASSERT below. The saved state is restored once the lock is held.
+		 */
+
+		(void)task_setcancelstate(TASK_CANCEL_DISABLE, &cancelstate);
 		while (sem_wait(&heap->mm_semaphore) != 0) {
 			/* The only case that an error should occur here is if
 			 * the wait was awakened by a signal.
@@ -171,6 +179,7 @@ bool mm_takesemaphore(FAR struct mm_heap_s *heap)
 
 			ASSERT(errno == EINTR);
 		}
+		(void)task_setcancelstate(cancelstate, NULL);
 
 		/* We have it.  Claim the stake and return */
 

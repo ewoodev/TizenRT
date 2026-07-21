@@ -59,6 +59,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <errno.h>
+#include <sched.h>
 
 #include <arch/irq.h>
 #include <tinyara/mm/gran.h>
@@ -103,15 +104,23 @@ void gran_enter_critical(FAR struct gran_s *priv)
 	priv->irqstate = enter_critical_section();
 #else
 	int ret;
+	int cancelstate;
 
 	/* Continue waiting if we are awakened by a signal */
 
+	/* Disable cancellation while waiting for the lock so that a pending
+	 * cancellation does not make sem_wait() return ECANCELED and trip the
+	 * DEBUGASSERT below. The saved state is restored once the lock is held.
+	 */
+
+	(void)task_setcancelstate(TASK_CANCEL_DISABLE, &cancelstate);
 	do {
 		ret = sem_wait(&priv->exclsem);
 		if (ret < 0) {
 			DEBUGASSERT(errno == EINTR);
 		}
 	} while (ret < 0);
+	(void)task_setcancelstate(cancelstate, NULL);
 #endif
 }
 
