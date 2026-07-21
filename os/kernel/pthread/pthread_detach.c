@@ -63,6 +63,8 @@
 #include <assert.h>
 #include <debug.h>
 
+#include <tinyara/mutex.h>
+
 #include "sched/sched.h"
 #include "group/group.h"
 #include "pthread/pthread.h"
@@ -124,7 +126,7 @@ int pthread_detach(pthread_t thread)
 
 	/* Find the entry associated with this pthread. */
 
-	(void)pthread_sem_take(&group->tg_joinsem);
+	(void)nxmutex_lock(&group->tg_joinlock);
 	pjoin = pthread_findjoininfo(group, (pid_t)thread);
 	if (!pjoin) {
 		sdbg("Could not find thread entry\n");
@@ -150,7 +152,7 @@ int pthread_detach(pthread_t thread)
 		ret = OK;
 	}
 
-	(void)pthread_sem_give(&group->tg_joinsem);
+	(void)nxmutex_unlock(&group->tg_joinlock);
 
 	svdbg("Returning %d\n", ret);
 	return ret;

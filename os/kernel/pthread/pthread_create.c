@@ -73,6 +73,7 @@
 #include <tinyara/arch.h>
 #include <tinyara/semaphore.h>
 #include <tinyara/kmalloc.h>
+#include <tinyara/mutex.h>
 #include <tinyara/pthread.h>
 
 #include "sched/sched.h"
@@ -195,9 +196,9 @@ static void pthread_start(void)
 
 	/* Sucessfully spawned, add the pjoin to our data set. */
 
-	(void)pthread_sem_take(&group->tg_joinsem);
+	(void)nxmutex_lock(&group->tg_joinlock);
 	pthread_addjoininfo(group, pjoin);
-	(void)pthread_sem_give(&group->tg_joinsem);
+	(void)nxmutex_unlock(&group->tg_joinlock);
 
 	/* Report to the spawner that we successfully started. */
 

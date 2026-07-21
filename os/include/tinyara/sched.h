@@ -78,6 +78,7 @@
 
 #include <tinyara/irq.h>
 #include <tinyara/fs/fs.h>
+#include <tinyara/mutex.h>
 #include <tinyara/net/net.h>
 #ifdef CONFIG_ARM_MPU
 #include <tinyara/mpu.h>
@@ -433,7 +434,7 @@ struct task_group_s {
 #ifndef CONFIG_DISABLE_PTHREAD
 	/* Pthreads ****************************************************************** */
 	/* Pthread join Info:                       */
-	sem_t tg_joinsem;			/*   Mutually exclusive access to join data */
+	mutex_t tg_joinlock;		/*   Mutually exclusive access to join data */
 	FAR struct join_s *tg_joinhead;	/*   Head of a list of join data            */
 	FAR struct join_s *tg_jointail;	/*   Tail of a list of join data            */
 #if CONFIG_NPTHREAD_KEYS > 0

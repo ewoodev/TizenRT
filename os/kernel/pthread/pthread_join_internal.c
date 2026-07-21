@@ -63,6 +63,7 @@
 #include <debug.h>
 
 #include <tinyara/cancelpt.h>
+#include <tinyara/mutex.h>
 
 #include "sched/sched.h"
 #include "group/group.h"
@@ -144,10 +145,10 @@ int pthread_join_internal(pthread_t thread, FAR pthread_addr_t *pexit_value, boo
 	/* Make sure no other task is mucking with the data structures
 	 * while we are performing the following operations.  NOTE:
 	 * we can be also sure that pthread_exit() will not execute
-	 * because it will also attempt to get this semaphore.
+	 * because it will also attempt to get this lock.
 	 */
 
-	(void)pthread_sem_take(&group->tg_joinsem);
+	(void)nxmutex_lock(&group->tg_joinlock);
 
 	/* Find the join information associated with this thread.
 	 * This can fail for one of three reasons:  (1) There is no
@@ -178,7 +179,7 @@ int pthread_join_internal(pthread_t thread, FAR pthread_addr_t *pexit_value, boo
 			ret = EINVAL;
 		}
 
-		(void)pthread_sem_give(&group->tg_joinsem);
+		(void)nxmutex_unlock(&group->tg_joinlock);
 	} else {
 		/* NOTE: sched_lock() is not enough for SMP because
 		 * another CPU would continue the pthread and exit
@@ -215,14 +216,14 @@ int pthread_join_internal(pthread_t thread, FAR pthread_addr_t *pexit_value, boo
 			svdbg("Thread is still running\n");
 
 			if (blocking == true) {
-				/* Relinquish the data set semaphore.  Since pre-emption is
+				/* Relinquish the join lock.  Since pre-emption is
 				 * disabled, we can be certain that no task has the
 				 * opportunity to run between the time we relinquish the
-				 * join semaphore and the time that we wait on the thread exit
+				 * join lock and the time that we wait on the thread exit
 				 * semaphore.
 				 */
 
-				(void)pthread_sem_give(&group->tg_joinsem);
+				(void)nxmutex_unlock(&group->tg_joinlock);
 
 				/* Take the thread's thread exit semaphore.  We will sleep here
 				 * until the thread exits.  We need to exercise caution because
@@ -245,23 +246,23 @@ int pthread_join_internal(pthread_t thread, FAR pthread_addr_t *pexit_value, boo
 
 				(void)pthread_sem_give(&pjoin->data_sem);
 
-				/* Retake the join semaphore, we need to hold this when
+				/* Retake the join lock, we need to hold this when
 				 * pthread_destroyjoin is called.
 				 */
 
-				(void)pthread_sem_take(&group->tg_joinsem);
+				(void)nxmutex_lock(&group->tg_joinlock);
 			} else {
 				sdbg("fail to get exit value\n");
 
 				sched_unlock();
 				pjoin->crefs--;
-				(void)pthread_sem_give(&group->tg_joinsem);
+				(void)nxmutex_unlock(&group->tg_joinlock);
 				return EBUSY;
 			}
 		}
 
 		/* Pre-emption is okay now. The logic still cannot be re-entered
-		 * because we hold the join semaphore
+		 * because we hold the join lock
 		 */
 
 		sched_unlock();
@@ -278,7 +279,7 @@ int pthread_join_internal(pthread_t thread, FAR pthread_addr_t *pexit_value, boo
 			(void)pthread_destroyjoin(group, pjoin);
 		}
 
-		(void)pthread_sem_give(&group->tg_joinsem);
+		(void)nxmutex_unlock(&group->tg_joinlock);
 		ret = OK;
 	}
 

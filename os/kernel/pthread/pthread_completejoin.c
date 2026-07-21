@@ -62,6 +62,8 @@
 #include <errno.h>
 #include <debug.h>
 
+#include <tinyara/mutex.h>
+
 #include "sched/sched.h"
 #include "group/group.h"
 #include "pthread/pthread.h"
@@ -230,11 +232,11 @@ int pthread_completejoin(pid_t pid, FAR void *exit_value)
 
 	/* First, find thread's structure in the private data set. */
 
-	(void)pthread_sem_take(&group->tg_joinsem);
+	(void)nxmutex_lock(&group->tg_joinlock);
 	pjoin = pthread_findjoininfo(group, pid);
 	if (!pjoin) {
 		sdbg("Could not find join info, pid=%d\n", pid);
-		(void)pthread_sem_give(&group->tg_joinsem);
+		(void)nxmutex_unlock(&group->tg_joinlock);
 		return ERROR;
 	} else {
 		bool waiters;
@@ -258,11 +260,11 @@ int pthread_completejoin(pid_t pid, FAR void *exit_value)
 			pthread_destroyjoin(group, pjoin);
 		}
 
-		/* Giving the following semaphore will allow the waiters
+		/* Releasing the following lock will allow the waiters
 		 * to call pthread_destroyjoin.
 		 */
 
-		(void)pthread_sem_give(&group->tg_joinsem);
+		(void)nxmutex_unlock(&group->tg_joinlock);
 	}
 
 	return OK;
@@ -280,7 +282,7 @@ int pthread_completejoin(pid_t pid, FAR void *exit_value)
  *   no thread ever calls pthread_join.  In case, there is a memory leak!
  *
  * Assumptions:
- *   The caller holds tg_joinsem
+ *   The caller holds tg_joinlock
  *
  ************************************************************************/
 

@@ -60,6 +60,7 @@
 #include <debug.h>
 
 #include <tinyara/kmalloc.h>
+#include <tinyara/mutex.h>
 
 #include "pthread/pthread.h"
 
@@ -133,7 +134,7 @@ void pthread_release(FAR struct task_group_s *group)
 		sched_kfree(join);
 	}
 
-	/* Destroy the join list semaphore */
+	/* Destroy the join list lock */
 
-	(void)sem_destroy(&group->tg_joinsem);
+	(void)nxmutex_destroy(&group->tg_joinlock);
 }
