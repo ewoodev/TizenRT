@@ -59,6 +59,7 @@
 #include <semaphore.h>
 #include <assert.h>
 #include <errno.h>
+#include <sched.h>
 #include <queue.h>
 
 #include <tinyara/sched.h>
@@ -172,6 +173,7 @@ void aio_initialize(void)
 void aio_lock(void)
 {
 	pid_t me = getpid();
+	int cancelstate;
 
 	/* Does this thread already hold the semaphore? */
 
@@ -183,9 +185,16 @@ void aio_lock(void)
 	} else {
 		/* No.. take the semaphore */
 
+		/* Disable cancellation while waiting for the lock so that a pending
+		 * cancellation does not make sem_wait() return ECANCELED and trip the
+		 * DEBUGASSERT below. The saved state is restored once the lock is held.
+		 */
+
+		(void)task_setcancelstate(TASK_CANCEL_DISABLE, &cancelstate);
 		while (sem_wait(&g_aio_exclsem) < 0) {
 			DEBUGASSERT(get_errno() == EINTR);
 		}
+		(void)task_setcancelstate(cancelstate, NULL);
 
 		/* And mark it as ours */
 
@@ -235,14 +244,22 @@ void aio_unlock(void)
 FAR struct aio_container_s *aioc_alloc(void)
 {
 	FAR struct aio_container_s *aioc;
+	int cancelstate;
 
 	/* Take a count from semaphore, thus guaranteeing that we have an AIO
 	 * container set aside for us.
 	 */
 
+	/* Disable cancellation while waiting for the count so that a pending
+	 * cancellation does not make sem_wait() return ECANCELED and trip the
+	 * DEBUGASSERT below. The saved state is restored once the count is held.
+	 */
+
+	(void)task_setcancelstate(TASK_CANCEL_DISABLE, &cancelstate);
 	while (sem_wait(&g_aioc_freesem) < 0) {
 		DEBUGASSERT(get_errno() == EINTR);
 	}
+	(void)task_setcancelstate(cancelstate, NULL);
 
 	/* Get our AIO container */
 

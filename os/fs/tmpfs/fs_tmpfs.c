@@ -67,6 +67,7 @@
 #include <assert.h>
 #include <debug.h>
 #include <unistd.h>
+#include <sched.h>
 
 #include <tinyara/kmalloc.h>
 #include <tinyara/fs/fs.h>
@@ -193,6 +194,7 @@ const struct mountpt_operations tmpfs_operations = {
 static void tmpfs_lock_reentrant(FAR struct tmpfs_sem_s *sem)
 {
 	pid_t me;
+	int cancelstate;
 
 	/* Do we already hold the semaphore? */
 
@@ -207,6 +209,12 @@ static void tmpfs_lock_reentrant(FAR struct tmpfs_sem_s *sem)
 	/* Take the semaphore (perhaps waiting) */
 
 	else {
+		/* Disable cancellation while waiting for the lock so that a pending
+		 * cancellation does not make sem_wait() return ECANCELED and trip the
+		 * ASSERT below. The saved state is restored once the lock is held.
+		 */
+
+		(void)task_setcancelstate(TASK_CANCEL_DISABLE, &cancelstate);
 		while (sem_wait(&sem->ts_sem) != 0) {
 			/* The only case that an error should occur here is if
 			 * the wait was awakened by a signal.
@@ -214,6 +222,7 @@ static void tmpfs_lock_reentrant(FAR struct tmpfs_sem_s *sem)
 
 			ASSERT(get_errno() == EINTR);
 		}
+		(void)task_setcancelstate(cancelstate, NULL);
 
 		/* No we hold the semaphore */
 
