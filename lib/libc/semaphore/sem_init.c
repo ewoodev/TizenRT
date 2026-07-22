@@ -116,10 +116,13 @@ int sem_init(FAR sem_t *sem, int pshared, unsigned int value)
 
 		sem->flags = FLAGS_INITIALIZED;
 
-		/* Initialize to support priority inheritance */
+		/* Priority inheritance is opt-in: a plain semaphore does not
+		 * track holders by default.  Locks that need priority inheritance
+		 * (mutexes) opt in with sem_setprotocol(SEM_PRIO_INHERIT).
+		 */
 
 #ifdef CONFIG_PRIORITY_INHERITANCE
-		sem->flags &= ~(PRIOINHERIT_FLAGS_DISABLE);
+		sem->flags |= PRIOINHERIT_FLAGS_DISABLE;
 #endif
 
 #ifdef SAVE_SEM_HOLDER
