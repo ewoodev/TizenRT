@@ -1,0 +1,18 @@
+#
+# For a description of the syntax of this configuration file,
+# see kconfig-language at https://www.kernel.org/doc/Documentation/kbuild/kconfig-language.txt
+#
+
+config EXAMPLES_MM_GUARD
+	bool "Heap Use After Free Guard Test Example"
+	default n
+	depends on MM_GUARD_FREED_PAGES
+	select DRIVERS_OS_API_TEST
+	---help---
+		Enable the front end for the heap use-after-free guard test.  The test
+		itself runs in kernel space, because the memory it abuses is the kernel
+		heap, and is reached through the OS API test driver.
+
+config USER_ENTRYPOINT
+	string
+	default "mm_guard_main" if ENTRY_MM_GUARD

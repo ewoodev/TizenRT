@@ -1,0 +1,3 @@
+config ENTRY_MM_GUARD
+	bool "Heap Use After Free Guard Test Example"
+	depends on EXAMPLES_MM_GUARD

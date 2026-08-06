@@ -42,6 +42,10 @@ ifeq ($(CONFIG_EXAMPLES_STACK_PROTECTION),y)
 CSRCS += test_kthread_stack_protection.c
 endif
 
+ifeq ($(CONFIG_MM_GUARD_FREED_PAGES),y)
+CSRCS += test_mm_guard.c
+endif
+
 CFLAGS += -I$(TOPDIR)/kernel
 
 # Include OS API test driver support

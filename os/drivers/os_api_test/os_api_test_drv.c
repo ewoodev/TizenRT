@@ -195,7 +195,13 @@ static int os_api_test_drv_ioctl(FAR struct file *filep, int cmd, unsigned long 
 	case TESTIOC_GET_FS_PARTNO:
 		ret = test_fs_get_devname();
 		break;
-#endif		
+#endif
+#ifdef CONFIG_MM_GUARD_FREED_PAGES
+	/* Run the test case for the heap use-after-free guard */
+	case TESTIOC_MM_GUARD_TEST:
+		ret = test_mm_guard(cmd, arg);
+		break;
+#endif
 	default:
 		vdbg("Unrecognized cmd: %d arg: %ld\n", cmd, arg);
 		break;

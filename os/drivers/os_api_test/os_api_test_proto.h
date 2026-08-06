@@ -40,4 +40,7 @@ int test_net_pbuf(int cmd, unsigned long arg);
 #if defined(CONFIG_AUTOMOUNT_USERFS) && defined(CONFIG_EXAMPLES_TESTCASE_FILESYSTEM)
 int test_fs_get_devname(void);
 #endif
+#ifdef CONFIG_MM_GUARD_FREED_PAGES
+int test_mm_guard(int cmd, unsigned long arg);
+#endif
 #endif

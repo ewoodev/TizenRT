@@ -87,6 +87,22 @@
 #if defined(CONFIG_AUTOMOUNT_USERFS) && defined(CONFIG_EXAMPLES_TESTCASE_FILESYSTEM)
 #define TESTIOC_GET_FS_PARTNO			_TESTIOC(24)
 #endif
+#ifdef CONFIG_MM_GUARD_FREED_PAGES
+/* TESTIOC_MM_GUARD_TEST - Exercise the heap use-after-free guard
+ *
+ *   ioctl argument: one of the MM_GUARD_TEST_* values below
+ */
+
+#define TESTIOC_MM_GUARD_TEST			_TESTIOC(25)
+
+#define MM_GUARD_TEST_DUMP			(0)	/* Print the current guard state */
+
+/* Use freed kernel heap memory on purpose.  This one does not return: the access
+ * is a real use-after-free, and the guard panics on one.
+ */
+
+#define MM_GUARD_TEST_HEAP_UAF			(1)
+#endif
 
 #define OS_API_TEST_DRVPATH	"/dev/os_api_test"
 
