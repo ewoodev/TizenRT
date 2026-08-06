@@ -65,6 +65,16 @@ int heap_dbg(const char *fmt, ...)
  ************************************************************************/
 void mm_dump_heap_region(uint32_t start, uint32_t end)
 {
+#ifdef MM_GUARD_ENABLED
+	/* This reads every byte of the range, freed chunks included, so the pages the
+	 * use-after-free guard has taken away have to come back first.  This is the
+	 * only heap walker that needs it: every other one visits chunk headers and
+	 * free list links, which are never inside a guarded page.
+	 */
+
+	mm_guard_unprotect_all();
+#endif
+
 	heap_dbg("#########################################################################################\n");
 	heap_dbg("Dump heap: 0x%08x - 0x%08x\n", start, end);
 	heap_dbg("#########################################################################################\n");

@@ -45,8 +45,26 @@
 		}		\
 	} while (0)
 
+/* Hand the protected pages of a chunk back before it is taken off the free list.
+ *
+ * Every path that writes into the interior of a free chunk goes through here
+ * first: the splits in mm_malloc() and mm_memalign(), the neighbour extension and
+ * bulk copy in mm_realloc(), the trailing split in mm_shrinkchunk() and the
+ * merges in mm_free().  Unprotecting here therefore covers all of them.
+ */
+
+#ifdef MM_GUARD_ENABLED
+#define MM_GUARD_UNPROTECT_NODE(node)		\
+	mm_guard_unprotect((node), ((FAR struct mm_allocnode_s *)(node))->size)
+#else
+#define MM_GUARD_UNPROTECT_NODE(node)		\
+	do {		\
+	} while (0)
+#endif
+
 #define REMOVE_NODE_FROM_LIST(node)				\
 	do {							\
+		MM_GUARD_UNPROTECT_NODE(node);			\
 		(node)->blink->flink = (node)->flink;		\
 		if ((node)->flink) {				\
 			(node)->flink->blink = (node)->blink;	\

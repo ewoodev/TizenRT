@@ -156,3 +156,61 @@ config MM_LARGE_ALLOC_THRESHOLD
 		to this value are placed at the back of the selected free
 		chunk. Default is 512KB. Must be larger than SIZEOF_MM_FREENODE.
 
+config MM_GUARD_FREED_PAGES
+	bool "Detect use after free with the MMU"
+	default n
+	depends on MMU_GUARD && MM_KERNEL_HEAP && DEBUG_MM_FREEINFO
+	---help---
+		Make the pages that lie entirely inside a freed kernel heap chunk
+		inaccessible, so that a read or write through a dangling pointer takes a
+		data abort at the offending instruction instead of silently corrupting
+		whoever gets the memory next. The report names the address, the faulting
+		instruction, and the task and call site that allocated and freed the chunk.
+
+		Only whole 4KB pages can be protected, and the first bytes of a payload
+		hold the free list links, so a payload has to be about 8KB before it is
+		guaranteed to contain a full page. Smaller allocations are not covered.
+
+		This is a debug facility. It cleans the data cache and rewrites page table
+		entries on every free of a large chunk.
+
+if MM_GUARD_FREED_PAGES
+
+config MM_GUARD_NSECTIONS
+	int "Sections of the heap to cover"
+	default 56
+	range 1 512
+	---help---
+		How many 1MB sections of the kernel heap can be protected, which is also
+		1KB of translation table each in .bss.
+
+		The guard covers whole sections only and skips the first and the last
+		section the heap touches, so the default should be at least
+		(heap size / 1MB) - 1. What does not fit is reported at boot and left
+		unguarded rather than silently skipped.
+
+config MM_GUARD_CHUNK_MAX_PAGES
+	int "Maximum pages protected per freed chunk"
+	default 8
+	range 0 512
+	---help---
+		Upper bound on the pages taken away for one freed chunk, which bounds the
+		work done on the free and allocation paths. Zero means no bound, but then
+		freeing the multi megabyte chunk at the top of the heap rewrites thousands
+		of page table entries at once.
+
+		A dangling pointer is almost always dereferenced near the start of the
+		buffer, so a small bound loses very little detection.
+
+config MM_GUARD_NRECORDS
+	int "Freed chunks kept on record"
+	default 32
+	range 1 256
+	---help---
+		How many recently freed chunks keep their owner information, so that a
+		violation can name who allocated and who freed the memory. A chunk that
+		was freed longer ago than this is still detected, only its history is
+		gone.
+
+endif # MM_GUARD_FREED_PAGES
+

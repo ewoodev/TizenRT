@@ -603,6 +603,16 @@ void os_start(void)
 	mm_initialize_app_heap_q();
 #endif
 
+#ifdef MM_GUARD_ENABLED
+	/* Put the kernel heap under MMU protection now.  The L1 translation table and
+	 * the heap both exist at this point, and no application has been loaded yet, so
+	 * the page tables installed here are inherited by every application L1 table
+	 * that is copied from the kernel one later on.
+	 */
+
+	mm_guard_initialize();
+#endif
+
  	/* Initialize the logic that determine unique process IDs. */
 
 	/* IDLE Group Initialization **********************************************/

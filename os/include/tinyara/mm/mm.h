@@ -661,6 +661,42 @@ void mm_dump_node(struct mm_allocnode_s *node, char *node_type);
 void mm_dump_heap_region(uint32_t start, uint32_t end);
 void mm_dump_heap_free_node_list(struct mm_heap_s *heap);
 int heap_dbg(const char *fmt, ...);
+
+/* The use-after-free guard re-permissions page table entries, so it only exists
+ * on the kernel side of a protected build.  os/mm/mm_heap is compiled twice, once
+ * into libkmm and once into libumm, and the user copy must not reference it.
+ */
+
+#if defined(CONFIG_MM_GUARD_FREED_PAGES) && (defined(CONFIG_BUILD_FLAT) || defined(__KERNEL__))
+#define MM_GUARD_ENABLED 1
+#endif
+
+#ifdef MM_GUARD_ENABLED
+/* Functions contained in mm_guard.c ****************************************/
+
+/* Put the whole pages of the kernel heap under MMU protection.  Call once the
+ * kernel heap exists and before the first application is loaded.
+ */
+void mm_guard_initialize(void);
+
+/* Make the pages that lie entirely inside a freed chunk inaccessible, so that a
+ * later access to them takes a data abort.  Call with the heap held, after the
+ * chunk has been merged and added to the free list, with the size the chunk had
+ * before the merges.
+ */
+void mm_guard_protect(FAR void *mem, mmsize_t chunksize, mmaddress_t free_call_addr, pid_t free_call_pid);
+
+/* Give back whichever pages of a chunk are currently protected.  Call before
+ * anything writes into the chunk again.
+ */
+void mm_guard_unprotect(FAR void *node, mmsize_t chunksize);
+
+/* Give back every protected page, for diagnostics that read the heap raw. */
+void mm_guard_unprotect_all(void);
+
+/* Print the guard state and the violations recorded so far. */
+void mm_guard_dump(void);
+#endif
 #ifdef CONFIG_DEBUG_MM_HEAPINFO
 /* Functions contained in kmm_mallinfo.c . Used to display memory allocation details */
 void heapinfo_parse_heap(FAR struct mm_heap_s *heap, int mode, pid_t pid);

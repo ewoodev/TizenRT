@@ -124,6 +124,9 @@ static void mm_free_internal(FAR struct mm_heap_s *heap, FAR void *mem, mmaddres
 	FAR struct mm_freenode_s *prev;
 	FAR struct mm_freenode_s *next;
 	char task_name[CONFIG_TASK_NAME_SIZE + 1];
+#ifdef MM_GUARD_ENABLED
+	mmsize_t chunksize;
+#endif
 
 	mvdbg("Freeing %p\n", mem);
 
@@ -190,6 +193,15 @@ static void mm_free_internal(FAR struct mm_heap_s *heap, FAR void *mem, mmaddres
 	heapinfo_update_total_size(heap, ((-1) * ((struct mm_allocnode_s *)node)->size), ((struct mm_allocnode_s *)node)->pid);
 #endif
 	node->preceding &= ~MM_ALLOC_BIT;
+#ifdef MM_GUARD_ENABLED
+	/* Remember the extent of the chunk being freed before the merges below grow it
+	 * into its neighbours.  The pages to protect are the ones inside this chunk,
+	 * not inside the merged result: the neighbours were either in use, and so are
+	 * not stale memory, or already free, and so already protected.
+	 */
+
+	chunksize = node->size;
+#endif
 #ifdef CONFIG_DEBUG_MM_FREEINFO
 	/* Record free metadata and quarantine sequence */
 	node->free_call_addr = free_call_addr;
@@ -244,6 +256,17 @@ static void mm_free_internal(FAR struct mm_heap_s *heap, FAR void *mem, mmaddres
 	/* Add the merged node to the nodelist */
 
 	mm_addfreechunk(heap, node);
+
+#ifdef MM_GUARD_ENABLED
+	/* Take the whole pages of the freed payload away, so that a dangling pointer
+	 * into it faults instead of corrupting whoever gets the memory next.  This has
+	 * to happen after mm_addfreechunk(), which writes the free list links into the
+	 * first bytes of the payload.
+	 */
+
+	mm_guard_protect(mem, chunksize, free_call_addr, free_call_pid);
+#endif
+
 	mm_givesemaphore(heap);
 }
 
