@@ -62,6 +62,9 @@
 #ifdef CONFIG_APP_BINARY_SEPARATION
 #include "mmu.h"
 #endif
+#ifdef CONFIG_MMU_GUARD
+#include <tinyara/mmu_guard.h>
+#endif
 
 /****************************************************************************
  * Public Variables
@@ -200,6 +203,17 @@ segfault:
 #include "section_config.h"
 SRAMDRAM_ONLY_TEXT_SECTION uint32_t *arm_dataabort(uint32_t *regs, uint32_t dfar, uint32_t dfsr)
 {
+#ifdef CONFIG_MMU_GUARD
+	/* Give the memory intrusion detector the first look.  When it claims the
+	 * abort, the faulting instruction is re-executed against a page that has
+	 * been made accessible again, so the system keeps running.
+	 */
+
+	if (mmu_guard_dataabort(regs, dfar, dfsr)) {
+		return regs;
+	}
+#endif
+
 	/* Save the saved processor context in CURRENT_REGS where it can be
 	 * accessed for register dumps and possibly context switching.
 	 */

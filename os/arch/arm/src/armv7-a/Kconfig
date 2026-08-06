@@ -168,3 +168,14 @@ config ARMV7A_DECODEFIQ
 		Select this option if your platform supports the function
 		arm_decodefiq().  This is used primarily to support secure TrustZone
 		interrupts received on the FIQ vector.
+
+config ARMV7A_HAVE_MMU_GUARD
+	bool
+	default y
+	depends on ARCH_USE_MMU && !ARCH_ROMPGTABLE && !PAGING
+	select ARCH_HAVE_MMU_GUARD
+	---help---
+		This architecture can replace a 1MB section mapping with a small page
+		translation table at run time and re-permission individual pages, which
+		is what the MMU guard needs.  Selected automatically; the guard itself is
+		enabled with MMU_GUARD.

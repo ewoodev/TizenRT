@@ -86,6 +86,13 @@ config ARCH_HAVE_MPU
 	bool
 	default n
 
+config ARCH_HAVE_MMU_GUARD
+	bool
+	default n
+	---help---
+		The architecture implements the page re-permissioning interface of
+		tinyara/mmu_pages.h, so the MMU guard can be built on it.
+
 config ARCH_NAND_HWECC
 	bool
 	default n

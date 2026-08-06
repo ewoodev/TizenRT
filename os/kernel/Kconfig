@@ -231,6 +231,44 @@ config START_DAY
 
 endif # !RTC
 
+config MMU_GUARD
+	bool "MMU guard"
+	default n
+	depends on ARCH_HAVE_MMU_GUARD
+	---help---
+		Take a range of kernel memory away from its callers by replacing the 1MB
+		section mappings that cover it with small page translation tables, then
+		lock and unlock individual 4KB pages at run time.  An access to a locked
+		page takes a data abort that is reported with the faulting address, the
+		offending instruction and the offending task.
+
+		This is the shared machinery.  It does nothing on its own; enable a client
+		such as MM_GUARD_FREED_PAGES to put it to work.
+
+		This is a debug and test facility.  It re-permissions page table entries
+		at run time, so it should not be enabled in production builds.
+
+if MMU_GUARD
+
+config MMU_GUARD_MAX_DOMAINS
+	int "Maximum number of guarded ranges"
+	default 2
+	range 1 8
+	---help---
+		How many independent ranges may be guarded at the same time.  Each client
+		registers one, so this is the number of clients that can be enabled
+		together.
+
+config MMU_GUARD_MAX_RECORDS
+	int "Maximum number of recorded violations"
+	default 8
+	range 1 64
+	---help---
+		How many violations are kept per guarded range for the dump.  Violations
+		beyond this count are still counted, only their details are dropped.
+
+endif # MMU_GUARD
+
 config MAX_WDOGPARMS
 	int "Maximum number of watchdog parameters"
 	default 4

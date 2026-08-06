@@ -65,6 +65,7 @@ include group/Make.defs
 include sched/Make.defs
 include task/Make.defs
 include errno/Make.defs
+include mmu_guard/Make.defs
 include wdog/Make.defs
 include semaphore/Make.defs
 include binary_manager/Make.defs
