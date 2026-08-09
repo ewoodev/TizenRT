@@ -79,6 +79,10 @@
 #include <tinyara/task_manager_drv.h>
 #endif
 
+#ifdef CONFIG_PREFERENCE
+#include "preference/preference.h"
+#endif
+
 /****************************************************************************
  * Private Functions
  ****************************************************************************/
@@ -620,6 +624,17 @@ void task_exithook(FAR struct tcb_s *tcb, int status, bool nonblocking)
 	 */
 
 	task_recover(tcb);
+
+#ifdef CONFIG_PREFERENCE
+	/* Unregister any preference change callbacks registered by this task.
+	 * This frees the callback list nodes and so may block on the heap
+	 * semaphore: it must run here, in a context that is allowed to block,
+	 * not in the exit window after the task has left the ready-to-run
+	 * list.
+	 */
+
+	preference_clear_callbacks(tcb->pid);
+#endif
 
 	/* NOTE: signal handling needs to be done in a critical section. */
 
