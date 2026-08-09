@@ -79,6 +79,16 @@
 
 static int g_irqerrno;
 
+#ifdef CONFIG_SMP
+/* Per-CPU errno slots used while a CPU tears down an exiting task.  In
+ * that window this_task() returns the successor task, which is NOT the
+ * thread executing the teardown: its pterrno must not be clobbered, and
+ * the shared g_irqerrno would be a data race between the CPUs.
+ */
+
+static int g_exit_errno[CONFIG_SMP_NCPUS];
+#endif
+
 /****************************************************************************
  * Public Functions
  ****************************************************************************/
@@ -107,6 +117,26 @@ FAR int *get_errno_ptr(void)
 	 */
 
 	if (!up_interrupt_context()) {
+#ifdef CONFIG_SMP
+		irqstate_t flags;
+		int cpu;
+
+		/* While this CPU tears down an exiting task, this_task() returns
+		 * the successor task, which is not the thread executing this code.
+		 * Route errno to a per-CPU slot in that window.  Interrupts are
+		 * disabled so that the CPU index and the marker are sampled
+		 * consistently.
+		 */
+
+		flags = irqsave();
+		cpu = this_cpu();
+		if (sched_exiting_task(cpu) != NULL) {
+			irqrestore(flags);
+			return &g_exit_errno[cpu];
+		}
+		irqrestore(flags);
+#endif
+
 		/* We were called from the normal tasking context.  Verify that the
 		 * task at the head of the ready-to-run list is actually running.  It
 		 * may not be running during very brief times during context switching
