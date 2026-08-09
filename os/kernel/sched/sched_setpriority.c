@@ -216,7 +216,14 @@ int sched_setpriority(FAR struct tcb_s *tcb, int sched_priority)
 		ntcb = tcb->flink;
 #endif
 		if (sched_priority <= ntcb->sched_priority) {
-			if (rtcb->lockcount > 0) {
+			/* Check the lockcount of 'tcb' itself: being in the RUNNING
+			 * state, it is the task that runs on the CPU where the context
+			 * switch would occur.  Under SMP that may be another CPU, whose
+			 * preemption state is carried by its own running task --
+			 * this_task()'s lockcount is the wrong lock domain there.
+			 */
+
+			if (tcb->lockcount > 0) {
 				/* Move all tasks with the higher priority from the ready-to-run
 				* list to the pending list.
 				*/
