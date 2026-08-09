@@ -157,31 +157,40 @@ int task_terminate(pid_t pid, bool nonblocking)
 	irqstate_t flags;
 	tstate_t orig_task_state;
 
+	/* Make sure the task does not become ready-to-run while we are futzing with
+	 * its TCB by locking ourselves as the executing task.  The TCB must be
+	 * looked up inside the critical section: outside of it, a concurrent
+	 * termination (the task's own exit or another killer) can remove and
+	 * free the TCB between the lookup and the checks below.
+	 */
+
+	flags = enter_critical_section();
+
 	/* Find for the TCB associated with matching PID */
 
 	dtcb = sched_gettcb(pid);
 	if (!dtcb) {
 		/* This PID does not correspond to any known task */
+
+		leave_critical_section(flags);
 		return -ESRCH;
 	}
 
-	/* Make sure the task does not become ready-to-run while we are futzing with
-	 * its TCB by locking ourselves as the executing task.
+	/* Is the task already being torn down?  This catches both a task that
+	 * is running its own exit processing (TCB_FLAG_EXIT_PROCESSING set --
+	 * it may be blocked inside group_release() with its group only
+	 * partially released) and a concurrent task_terminate() that has
+	 * already removed the TCB from the task lists (TSTATE_TASK_INVALID)
+	 * but has not yet reached task_exithook() where the flag is set.
+	 * Proceeding in either case would remove the TCB from a list it is
+	 * not in and release its resources twice.  Returning success follows
+	 * the POSIX pthread_cancel() semantics: a cancellation request
+	 * against a thread that is already terminating succeeds and has no
+	 * further effect.
 	 */
 
-	flags = enter_critical_section();
-
-	/* Is the task already running its own exit processing?  If so, it may
-	 * be blocked inside group_release() with its group only partially
-	 * released.  Removing it from the task lists and releasing its TCB
-	 * here would release the half-released group a second time and free
-	 * the stack and TCB of a thread that will still resume.  Let its own
-	 * exit complete the termination.  Returning success follows the POSIX
-	 * pthread_cancel() semantics: a cancellation request against a thread
-	 * that is already terminating succeeds and has no further effect.
-	 */
-
-	if (!nonblocking && (dtcb->flags & TCB_FLAG_EXIT_PROCESSING) != 0) {
+	if (!nonblocking && ((dtcb->flags & TCB_FLAG_EXIT_PROCESSING) != 0 ||
+			dtcb->task_state == TSTATE_TASK_INVALID)) {
 		leave_critical_section(flags);
 		return OK;
 	}
