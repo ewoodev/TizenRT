@@ -58,6 +58,7 @@
 
 #include <stdlib.h>
 #include <unistd.h>
+#include <signal.h>
 #include <debug.h>
 #include <errno.h>
 
@@ -115,6 +116,22 @@ void exit(int status)
 	/* Only the lower 8-bits of status are used */
 
 	status &= 0xff;
+
+#ifndef CONFIG_DISABLE_SIGNALS
+	/* Mask all signals so that a signal handler cannot re-enter the exit
+	 * processing in this task's context.  The exit processing below may
+	 * legally block (stream flush, group release); a handler that runs in
+	 * that window and exits again would find TCB_FLAG_EXIT_PROCESSING
+	 * already set, skip the remaining cleanup, and reach the final
+	 * teardown with the group only half released.
+	 */
+
+	{
+		sigset_t set = ALL_SIGNAL_SET;
+
+		(void)sigprocmask(SIG_SETMASK, &set, NULL);
+	}
+#endif
 
 	/* Perform common task termination logic.  This will get called again later
 	 * through logic kicked off by _exit().  However, we need to call it before

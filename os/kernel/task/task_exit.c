@@ -56,6 +56,7 @@
 
 #include <tinyara/config.h>
 #include <stdlib.h>
+#include <signal.h>
 #include <sched.h>
 
 #include  "sched/sched.h"
@@ -181,6 +182,20 @@ int task_exit(void)
 
 #ifdef CONFIG_SMP
 	int cpu;
+#endif
+
+#ifndef CONFIG_DISABLE_SIGNALS
+	/* Mask all signals so that a signal handler cannot re-enter the exit
+	 * processing in this task's context while the exit hook below blocks
+	 * (see exit()).  For tasks arriving via exit() or pthread_exit() the
+	 * mask is already in place and this is a no-op.
+	 */
+
+	{
+		sigset_t set = ALL_SIGNAL_SET;
+
+		(void)sigprocmask(SIG_SETMASK, &set, NULL);
+	}
 #endif
 
 	/* Perform the common task termination logic first, while this task is
