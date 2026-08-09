@@ -109,6 +109,18 @@ int task_terminate_unloaded(FAR struct tcb_s *tcb)
 
 	sched_lock();
 
+	/* Is the thread already running its own exit processing?  If so, its
+	 * group may be half released and its own exit will complete the
+	 * termination; releasing the group and the TCB here would release
+	 * the group twice and free the stack of a thread that will still
+	 * resume.
+	 */
+
+	if ((tcb->flags & TCB_FLAG_EXIT_PROCESSING) != 0) {
+		sched_unlock();
+		return OK;
+	}
+
 #if defined(CONFIG_APP_BINARY_SEPARATION)
 	/* Disable mpu regions when the binary is unloaded if its own mpu registers are set in mpu h/w. */
 	if (IS_BINARY_MAINTASK(tcb)) {

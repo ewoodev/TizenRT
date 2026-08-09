@@ -175,6 +175,20 @@ int task_restart(pid_t pid)
 			goto ret_with_lock;
 		}
 
+		/* A task that is already running its own exit processing cannot
+		 * be restarted: its group is (partially) released and its own
+		 * exit will release the TCB.  Recovering and re-initializing it
+		 * here would wake semaphores it is genuinely queued on and leave
+		 * a task whose exit hook is a no-op (the exit-processing flag
+		 * stays set), so its resources would never be released.
+		 */
+
+		if ((tcb->cmn.flags & TCB_FLAG_EXIT_PROCESSING) != 0) {
+			set_errno(EBUSY);
+			ret = ERROR;
+			goto ret_with_lock;
+		}
+
 #if defined(CONFIG_SCHED_ATEXIT) || defined(CONFIG_SCHED_ONEXIT)
 		/* If exit function(s) were registered, call them now before we do any un-
 		 * initialization.
