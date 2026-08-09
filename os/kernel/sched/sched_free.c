@@ -106,9 +106,15 @@ void sched_ufree(FAR void *address)
 	/* Check if this is an attempt to deallocate memory from an exception
 	 * handler.  If this function is called from the IDLE task, then we
 	 * must have exclusive access to the memory manager to do this.
+	 *
+	 * Never touch the heap from the task-exit window either: getpid()
+	 * names the successor task there, so if that task holds the heap
+	 * semaphore, the trylock below would be treated as a recursive take
+	 * on its behalf and the free would run inside the successor's heap
+	 * critical section.
 	 */
 
-	if (up_interrupt_context() || kumm_trysemaphore(address) != 0) {
+	if (up_interrupt_context() || sched_exiting_task(this_cpu()) != NULL || kumm_trysemaphore(address) != 0) {
 		/* Yes.. Make sure that this is not a attempt to free kernel memory
 		 * using the user deallocator.
 		 */
@@ -151,9 +157,15 @@ void sched_kfree(FAR void *address)
 	/* Check if this is an attempt to deallocate memory from an exception
 	 * handler.  If this function is called from the IDLE task, then we
 	 * must have exclusive access to the memory manager to do this.
+	 *
+	 * Never touch the heap from the task-exit window either: getpid()
+	 * names the successor task there, so if that task holds the heap
+	 * semaphore, the trylock below would be treated as a recursive take
+	 * on its behalf and the free would run inside the successor's heap
+	 * critical section.
 	 */
 
-	if (up_interrupt_context() || kmm_trysemaphore(address) != 0) {
+	if (up_interrupt_context() || sched_exiting_task(this_cpu()) != NULL || kmm_trysemaphore(address) != 0) {
 		/* Yes.. Make sure that this is not a attempt to free user memory
 		 * using the kernel deallocator.
 		 */
