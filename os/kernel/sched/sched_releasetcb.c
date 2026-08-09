@@ -58,6 +58,7 @@
 
 #include <sys/types.h>
 #include <sched.h>
+#include <assert.h>
 #include <errno.h>
 
 #include <tinyara/arch.h>
@@ -202,8 +203,15 @@ int sched_releasetcb(FAR struct tcb_s *tcb, uint8_t ttype)
 #endif
 
 #ifdef HAVE_TASK_GROUP
-		/* Leave the group (if we did not already leave in task_exithook.c) */
+		/* Leave the group (if we did not already leave in task_exithook.c).
+		 * A task that ran its exit processing must already have detached
+		 * its group there, in a context that was allowed to block; a live
+		 * group at this point would be released from the exit window where
+		 * blocking corrupts the scheduler.  This call remains for the task
+		 * creation failure paths, which never enter task_exithook().
+		 */
 
+		DEBUGASSERT((tcb->flags & TCB_FLAG_EXIT_PROCESSING) == 0 || tcb->group == NULL);
 		group_leave(tcb);
 #endif
 

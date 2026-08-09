@@ -540,9 +540,12 @@ static inline void task_flushstreams(FAR struct tcb_s *tcb)
  *   will have already removed the tcb from the ready-to-run list to prevent
  *   any further action on this task.
  *
- *   nonblocking will be set true only when we are called from task_terminate()
- *   via _exit().  In that case, we must be careful to do nothing that can
- *   cause the cause the thread to block.
+ *   nonblocking selects the _exit() semantics: the atexit/on_exit functions
+ *   are not called and buffered I/O is not flushed.  It is set true when we
+ *   are called from task_exit() -- before the exiting task leaves the
+ *   ready-to-run list, so blocking is still permitted there -- and from
+ *   task_terminate() via _exit(), where the exit processing has already
+ *   completed and this function returns immediately.
  *
  ****************************************************************************/
 

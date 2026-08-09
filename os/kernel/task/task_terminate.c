@@ -136,9 +136,9 @@
  *     non-running. task_exit then calls task_terminate() (with nonblocking
  *     == true) to terminate the non-running task.
  *
- *   NOTE: that the state of non-blocking is irrelevant when called through
- *   exit() and pthread_exit().  In those cases task_exithook() has already
- *   been called with nonblocking == false;
+ *   NOTE: task_exit() runs task_exithook() before it makes the task
+ *   non-running, so when we are called with nonblocking == true the exit
+ *   processing has already completed and no blocking work remains here.
  *
  * Inputs:
  *   pid - The task ID of the task to delete.  A pid of zero

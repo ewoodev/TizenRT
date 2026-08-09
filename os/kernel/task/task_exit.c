@@ -55,6 +55,7 @@
  ****************************************************************************/
 
 #include <tinyara/config.h>
+#include <stdlib.h>
 #include <sched.h>
 
 #include  "sched/sched.h"
@@ -180,9 +181,31 @@ int task_exit(void)
 
 #ifdef CONFIG_SMP
 	int cpu;
+#endif
 
+	/* Perform the common task termination logic first, while this task is
+	 * still at the head of the ready-to-run list.  For a task arriving
+	 * here via exit() or pthread_exit() this is a no-op because
+	 * TCB_FLAG_EXIT_PROCESSING is already set.  For a direct _exit() call
+	 * this runs the parent notification, the exit wakeup and the group
+	 * release (closing files, sockets and message queues, which may
+	 * legally block here) with a truthful this_task() and task_state.
+	 * After the TCB is removed from the ready-to-run list below,
+	 * this_task() names the successor task instead of this thread, so
+	 * nothing in the remaining teardown may block or post semaphores.
+	 *
+	 * nonblocking is true to preserve the _exit() semantics: the
+	 * atexit/on_exit functions are not called and buffered I/O is not
+	 * flushed.
+	 */
+
+	task_exithook(this_task(), EXIT_SUCCESS, true);
+
+#ifdef CONFIG_SMP
 	/* Get the current CPU. By assumpition, we are within a critical section
-	 * and hence, the CPU index will remain stable.
+	 * and hence, the CPU index will remain stable.  The CPU index must be
+	 * sampled after the exit hook above: the hook may have blocked, in
+	 * which case this task may have resumed on a different CPU.
 	 *
 	 * Avoid using this_task() because it may assume a state that is not
 	 * appropriate for an exiting task.
@@ -192,6 +215,14 @@ int task_exit(void)
 	dtcb = current_task(cpu);
 #else
 	dtcb = this_task();
+#endif
+
+#ifdef HAVE_TASK_GROUP
+	/* The exit hook above must have detached this task from its group;
+	 * from here on the group may no longer be touched from this context.
+	 */
+
+	DEBUGASSERT(dtcb->group == NULL);
 #endif
 
 	/* Check that exit is ready or not before execution */
