@@ -392,6 +392,18 @@ static int sem_restoreholderprio(FAR struct semholder_s *pholder, FAR sem_t *sem
 	FAR struct tcb_s *stcb;
 	int hpriority;
 
+	DEBUGASSERT(htcb != NULL && htcb->task_state < NUM_TASK_STATES);
+
+	/* A holder in the INVALID state is mid-termination: it has been removed
+	 * from every task list and its remaining holds are about to be dropped
+	 * by sem_release_all().  Reprioritizing it would apply scheduler
+	 * operations to a dequeued TCB.
+	 */
+
+	if (htcb->task_state == TSTATE_TASK_INVALID) {
+		return 0;
+	}
+
 	/* We will attempt to restore the holder's priority to its base priority.
 	 * If there is any thread with a higher priority waiting for a semaphore
 	 * held by htcb, then this value will be overwritten.
