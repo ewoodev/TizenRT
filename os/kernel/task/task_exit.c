@@ -283,7 +283,26 @@ int task_exit(void)
 			&g_cpu_schedlock);
 #endif
 
+#ifndef CONFIG_SMP
+	/* Single core: marking the successor READYTORUN routes errno access to
+	 * g_irqerrno (see get_errno_ptr()) and is harmless because every
+	 * runnable state maps to the same g_readytorun list.
+	 */
+
 	rtcb->task_state = TSTATE_TASK_READYTORUN;
+#else
+	/* SMP: the successor keeps its truthful RUNNING state.  Under SMP,
+	 * TSTATE_TASK_READYTORUN selects g_readytorun -- a different,
+	 * non-runnable list -- so forging it makes task_state disagree with
+	 * the queue membership: any scheduler API aimed at the successor
+	 * during the window (sched_setpriority() from a priority inheritance
+	 * restore on the other CPU, up_block_task(), ...) would then operate
+	 * on the wrong queue and cross-link the task lists.  errno routing is
+	 * handled by the per-CPU exiting-task marker instead.
+	 */
+
+	DEBUGASSERT(rtcb->task_state == TSTATE_TASK_RUNNING);
+#endif
 
 	/* Move the TCB to the specified blocked task list and delete it.  Calling
 	 * task_terminate with non-blocking true will suppress atexit() and on-exit()
@@ -317,7 +336,15 @@ int task_exit(void)
 	g_cpu_exiting_tcb[cpu] = NULL;
 #endif
 
+#ifndef CONFIG_SMP
 	rtcb->task_state = TSTATE_TASK_RUNNING;
+#else
+	/* The successor's state was never forged on SMP; it must still be the
+	 * running task of this CPU.
+	 */
+
+	DEBUGASSERT(rtcb->task_state == TSTATE_TASK_RUNNING);
+#endif
 
 	/* We can't use sched_unlock() to decrement the lock count because the
 	 * sched_mergepending() call above might have changed the task at the
