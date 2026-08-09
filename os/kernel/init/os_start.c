@@ -181,6 +181,16 @@ volatile dq_queue_t g_assignedtasks[CONFIG_SMP_NCPUS];
 
 FAR struct tcb_s *g_running_tasks[CONFIG_SMP_NCPUS];
 
+#ifdef CONFIG_SMP
+/* g_cpu_exiting_tcb[cpu] holds the TCB that is physically executing on a
+ * CPU while that CPU tears down an exiting task in task_exit(), i.e. after
+ * sched_removereadytorun(dtcb) has made this_task() return the successor
+ * task.  It is NULL whenever the CPU is executing a valid task context.
+ */
+
+FAR struct tcb_s *volatile g_cpu_exiting_tcb[CONFIG_SMP_NCPUS];
+#endif
+
 /* This is the list of all tasks that are ready-to-run, but cannot be placed
  * in the g_readytorun list because:  (1) They are higher priority than the
  * currently active task at the head of the g_readytorun list, and (2) the

@@ -228,6 +228,19 @@ int task_exit(void)
 	/* Check that exit is ready or not before execution */
 	prepare_exit(dtcb);
 
+#ifdef CONFIG_SMP
+	/* Mark this CPU as tearing down the exiting task: from the removal
+	 * below until task_terminate() returns, this_task() no longer names
+	 * the thread that is physically executing on this CPU.  Re-sample the
+	 * CPU index first: prepare_exit() may have blocked on the heap
+	 * semaphore and this task may have resumed on a different CPU.
+	 */
+
+	cpu = this_cpu();
+	DEBUGASSERT(g_cpu_exiting_tcb[cpu] == NULL);
+	g_cpu_exiting_tcb[cpu] = dtcb;
+#endif
+
 	/* Remove the TCB of the current task from the ready-to-run list.  A context
 	 * switch will definitely be necessary -- that must be done by the
 	 * architecture-specific logic.
@@ -295,6 +308,13 @@ int task_exit(void)
 
 #ifdef CONFIG_SMP
 	rtcb->irqcount--;
+
+	/* Leave the exit window: dtcb's TCB has been freed by
+	 * sched_releasetcb() inside task_terminate() and must no longer be
+	 * referenced through the marker.
+	 */
+
+	g_cpu_exiting_tcb[cpu] = NULL;
 #endif
 
 	rtcb->task_state = TSTATE_TASK_RUNNING;

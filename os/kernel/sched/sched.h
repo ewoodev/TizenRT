@@ -213,6 +213,20 @@ extern volatile dq_queue_t g_assignedtasks[CONFIG_SMP_NCPUS];
 
 extern FAR struct tcb_s *g_running_tasks[CONFIG_SMP_NCPUS];
 
+#ifdef CONFIG_SMP
+/* g_cpu_exiting_tcb[cpu] holds the TCB that is physically executing on a
+ * CPU while that CPU tears down an exiting task in task_exit(), i.e. after
+ * sched_removereadytorun(dtcb) has made this_task() return the successor
+ * task.  It is NULL whenever the CPU is executing a valid task context.
+ */
+
+extern FAR struct tcb_s *volatile g_cpu_exiting_tcb[CONFIG_SMP_NCPUS];
+
+#define sched_exiting_task(cpu)		(g_cpu_exiting_tcb[(cpu)])
+#else
+#define sched_exiting_task(cpu)		((FAR struct tcb_s *)NULL)
+#endif
+
 extern volatile dq_queue_t g_pendingtasks;
 
 /* This is the list of all tasks that are blocked waiting for a semaphore */
