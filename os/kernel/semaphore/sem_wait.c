@@ -218,6 +218,18 @@ int sem_wait(FAR sem_t *sem)
 			/* Add the TCB to the prioritized semaphore wait queue */
 
 			set_errno(0);
+
+#ifdef CONFIG_SMP
+			/* Blocking while this CPU tears down an exiting task would
+			 * save the exiting thread's context into the successor's TCB
+			 * and corrupt the task lists.  Fail here, at the cause, not at
+			 * the eventual wakeup symptom.
+			 */
+
+			DEBUGASSERT(sched_exiting_task(this_cpu()) == NULL);
+			DEBUGASSERT(rtcb->task_state == TSTATE_TASK_RUNNING);
+#endif
+
 			up_block_task(rtcb, TSTATE_WAIT_SEM);
 
 			/* When we resume at this point, either (1) the semaphore has been

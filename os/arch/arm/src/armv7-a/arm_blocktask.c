@@ -86,7 +86,20 @@ void up_block_task(struct tcb_s *tcb, tstate_t task_state)
 
 	/* Verify that the context switch can be performed */
 
+#ifdef CONFIG_SMP
+	/* Under SMP every blocking path self-blocks, so the only legal caller
+	 * context is the task that is physically running on this CPU.  A task
+	 * in any other state (e.g. the successor impersonated during the
+	 * task-exit window) belongs to a different queue than the one a
+	 * removal would compute from its state, and proceeding would
+	 * cross-link the task lists.
+	 */
+
+	DEBUGASSERT(tcb->task_state == TSTATE_TASK_RUNNING && tcb == current_task(this_cpu()));
+	DEBUGASSERT(sched_exiting_task(this_cpu()) == NULL);
+#else
 	DEBUGASSERT((tcb->task_state >= FIRST_READY_TO_RUN_STATE) && (tcb->task_state <= LAST_READY_TO_RUN_STATE));
+#endif
 
 	/* Remove the tcb task from the ready-to-run list.  If we are blocking the
 	 * task at the head of the task list (the most likely case), then a
