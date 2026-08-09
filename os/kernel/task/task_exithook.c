@@ -563,6 +563,13 @@ void task_exithook(FAR struct tcb_s *tcb, int status, bool nonblocking)
 		return;
 	}
 
+	/* Set the flag atomically with the check above so that a concurrent
+	 * termination of this task (task_delete(), pthread_cancel()) cannot
+	 * re-run the exit processing while it is still in progress.
+	 */
+
+	tcb->flags |= TCB_FLAG_EXIT_PROCESSING;
+
 	leave_critical_section(flags);
 
 #ifdef CONFIG_DEBUG
@@ -629,13 +636,6 @@ void task_exithook(FAR struct tcb_s *tcb, int status, bool nonblocking)
 	if (!nonblocking) {
 		task_flushstreams(tcb);
 	}
-
-	/* This function can be re-entered in certain cases.  Set a flag
-	 * bit in the TCB to note that we have already completed this exit
-	 * processing.
-	 */
-
-	tcb->flags |= TCB_FLAG_EXIT_PROCESSING;
 
 	/* Send the SIGCHILD signal to the parent task group */
 
