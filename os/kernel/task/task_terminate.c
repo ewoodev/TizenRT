@@ -175,6 +175,21 @@ int task_terminate(pid_t pid, bool nonblocking)
 
 	flags = enter_critical_section();
 
+	/* Is the task already running its own exit processing?  If so, it may
+	 * be blocked inside group_release() with its group only partially
+	 * released.  Removing it from the task lists and releasing its TCB
+	 * here would release the half-released group a second time and free
+	 * the stack and TCB of a thread that will still resume.  Let its own
+	 * exit complete the termination.  Returning success follows the POSIX
+	 * pthread_cancel() semantics: a cancellation request against a thread
+	 * that is already terminating succeeds and has no further effect.
+	 */
+
+	if (!nonblocking && (dtcb->flags & TCB_FLAG_EXIT_PROCESSING) != 0) {
+		leave_critical_section(flags);
+		return OK;
+	}
+
 	/* Verify our internal sanity */
 
 #ifdef CONFIG_SMP
