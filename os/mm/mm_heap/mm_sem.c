@@ -236,6 +236,14 @@ void mm_is_sem_available(void *address)
 		mdbg("Invalid Heap address given, Fail to check sem availability.\n");
 		return;
 	}
-	DEBUGASSERT(mm_takesemaphore(heap));
-	mm_givesemaphore(heap);
+
+	/* Take and give the semaphore unconditionally: with CONFIG_DEBUG
+	 * disabled, DEBUGASSERT() expands to nothing, so wrapping the take in
+	 * it would skip the take while still posting the semaphore below,
+	 * corrupting the semaphore count.
+	 */
+
+	if (mm_takesemaphore(heap)) {
+		mm_givesemaphore(heap);
+	}
 }
