@@ -105,6 +105,8 @@
  *
  * Inputs:
  *   tcb - The TCB of the terminated task or thread
+ *   wait_state - The task state sampled before the TCB was removed from
+ *     the task lists
  *
  * Return Value:
  *   None.
@@ -114,7 +116,7 @@
  *
  ****************************************************************************/
 
-void sem_recover(FAR struct tcb_s *tcb)
+void sem_recover(FAR struct tcb_s *tcb, tstate_t wait_state)
 {
 	irqstate_t flags;
 
@@ -123,16 +125,16 @@ void sem_recover(FAR struct tcb_s *tcb)
 	 * to what you see in sem_waitirq() except that no attempt is made to
 	 * restart the exiting task.
 	 *
-	 * NOTE:  In the case that the task is waiting we can assume: (1) That the
-	 * task state is TSTATE_WAIT_SEM and (2) that the 'waitsem' in the TCB is
-	 * non-null.  If we get here via pthread_cancel() or via task_delete(),
-	 * then the task state should be preserved; it will be altered in other
-	 * cases but in those cases waitsem should be NULL anyway (but we do not
-	 * enforce that here).
+	 * NOTE: wait_state carries the task state sampled before the TCB was
+	 * removed from the task lists.  The TCB itself may already be
+	 * TSTATE_TASK_INVALID (in no list) when we run, so its live task_state
+	 * can no longer tell us which wait the task was in.  In the case that
+	 * the task was waiting we can assume that the 'waitsem' in the TCB is
+	 * non-null.
 	 */
 
 	flags = enter_critical_section();
-	if (tcb->task_state == TSTATE_WAIT_SEM) {
+	if (wait_state == TSTATE_WAIT_SEM) {
 		sem_t *sem = tcb->waitsem;
 		DEBUGASSERT(sem != NULL && sem->semcount < 0);
 
@@ -154,11 +156,7 @@ void sem_recover(FAR struct tcb_s *tcb)
 			DEBUGASSERT(sem->semcount < 2);
 		}
 
-		/* Clear the semaphore to assure that it is not reused.  But leave the
-		 * state as TSTATE_WAIT_SEM.  This is necessary because this is a
-		 * necessary indication that the TCB still resides in the waiting-for-
-		 * semaphore list.
-		 */
+		/* Clear the semaphore to assure that it is not reused. */
 
 		tcb->waitsem = NULL;
 

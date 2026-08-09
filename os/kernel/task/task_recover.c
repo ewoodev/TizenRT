@@ -103,6 +103,10 @@
  *
  * Inputs:
  *   tcb - The TCB of the terminated task or thread
+ *   wait_state - The task state sampled before the TCB was removed from
+ *     the task lists.  The TCB itself may already be TSTATE_TASK_INVALID
+ *     (in no list), in which case its live task_state can no longer tell
+ *     the recovery logic which wait the task was in.
  *
  * Return Value:
  *   None.
@@ -112,7 +116,7 @@
  *
  ****************************************************************************/
 
-void task_recover(FAR struct tcb_s *tcb)
+void task_recover(FAR struct tcb_s *tcb, tstate_t wait_state)
 {
 	/* The task is being deleted.  Cancel in pending timeout events. */
 
@@ -122,11 +126,11 @@ void task_recover(FAR struct tcb_s *tcb)
 	 * then release the counts.
 	 */
 
-	sem_recover(tcb);
+	sem_recover(tcb, wait_state);
 
 #ifndef CONFIG_DISABLE_MQUEUE
 	/* Handle cases where the thread was waiting for a message queue event */
 
-	mq_recover(tcb);
+	mq_recover(tcb, wait_state);
 #endif
 }

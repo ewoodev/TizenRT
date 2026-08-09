@@ -155,8 +155,7 @@ int task_terminate(pid_t pid, bool nonblocking)
 {
 	FAR struct tcb_s *dtcb;
 	irqstate_t flags;
-	uint8_t orig_task_state;
-	uint8_t final_task_state;
+	tstate_t orig_task_state;
 
 	/* Find for the TCB associated with matching PID */
 
@@ -196,29 +195,27 @@ int task_terminate(pid_t pid, bool nonblocking)
 	            dtcb->task_state < NUM_TASK_STATES);
 #endif
 
-	/* Remove the task from the task list
-	 * before removing the task from the global tasklist, we are preserving its
-	 * task->state because it is needed for task_recover() operations and
-	 * sched_removereadytorun() sets task state as invalid.
-	 * After task_recover() operations are complete, we set the invalid state back.
+	/* Remove the task from the task list.  sched_removereadytorun() marks
+	 * the TCB as TSTATE_TASK_INVALID and it stays that way: the TCB is in
+	 * no list, and restoring the stale pre-removal state onto it would let
+	 * other logic (signal delivery, priority inheritance restore, CPU
+	 * pause) mistake this dequeued TCB for a running or waiting one.  The
+	 * pre-removal state that the recovery logic needs is passed to
+	 * task_recover() explicitly instead.
 	 */
 
 	/* Lock the scheduler across the recovery window.  task_recover() may
 	 * wake up tasks that were waiting on semaphores held by the dying task
 	 * (see sem_release_all()).  Without the scheduler lock, such a wake-up
-	 * could switch to the woken task while dtcb still carries its original
-	 * (blocked) task_state although it is in no list anymore, and any code
-	 * inspecting dtcb during that window (e.g. signal delivery calling
-	 * sem_waitirq()) would operate on a half-deleted TCB.
+	 * could switch to the woken task while dtcb is in no list anymore, and
+	 * any code inspecting dtcb during that window (e.g. signal delivery
+	 * calling sem_waitirq()) would operate on a half-deleted TCB.
 	 */
 
 	sched_lock();
 	orig_task_state = dtcb->task_state;
 	sched_removereadytorun(dtcb);
-	final_task_state = dtcb->task_state;
-	dtcb->task_state = orig_task_state;
-	task_recover(dtcb);
-	dtcb->task_state = final_task_state;
+	task_recover(dtcb, orig_task_state);
 	sched_unlock();
 
 	/* At this point, the TCB should no longer be accessible to the system */

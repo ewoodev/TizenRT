@@ -180,7 +180,7 @@ void mq_release(FAR struct task_group_s *group);
 
 /* mq_recover.c ************************************************************/
 
-void mq_recover(FAR struct tcb_s *tcb);
+void mq_recover(FAR struct tcb_s *tcb, tstate_t wait_state);
 
 #undef EXTERN
 #ifdef __cplusplus

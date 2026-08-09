@@ -198,7 +198,7 @@ int task_restart(pid_t pid)
 
 		/* Try to recover from any bad states */
 
-		task_recover((FAR struct tcb_s *)tcb);
+		task_recover((FAR struct tcb_s *)tcb, tcb->cmn.task_state);
 
 		/* Kill any children of this thread */
 

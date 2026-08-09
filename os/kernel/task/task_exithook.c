@@ -623,7 +623,7 @@ void task_exithook(FAR struct tcb_s *tcb, int status, bool nonblocking)
 	 * state.  Make some feeble effort to recover the state.
 	 */
 
-	task_recover(tcb);
+	task_recover(tcb, tcb->task_state);
 
 #ifdef CONFIG_PREFERENCE
 	/* Unregister any preference change callbacks registered by this task.

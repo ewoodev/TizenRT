@@ -398,7 +398,7 @@ static int binary_manager_terminate_binary(int bin_idx)
 	while (tcb) {
 		ntcb = tcb->bin_flink;
 		if (need_recovery) {
-			task_recover(tcb);
+			task_recover(tcb, tcb->task_state);
 		}
 		if (tcb != btcb) {
 			ret = task_terminate_unloaded(tcb);
@@ -413,7 +413,7 @@ static int binary_manager_terminate_binary(int bin_idx)
 	while (tcb) {
 		ntcb = tcb->bin_flink;
 		if (need_recovery) {
-			task_recover(tcb);
+			task_recover(tcb, tcb->task_state);
 		}
 		if (tcb != btcb) {
 			ret = task_terminate_unloaded(tcb);

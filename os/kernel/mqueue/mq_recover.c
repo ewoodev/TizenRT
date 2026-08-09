@@ -97,6 +97,8 @@
  *
  * Inputs:
  *   tcb - The TCB of the terminated task or thread
+ *   wait_state - The task state sampled before the TCB was removed from
+ *     the task lists
  *
  * Return Value:
  *   None.
@@ -106,7 +108,7 @@
  *
  ************************************************************************/
 
-void mq_recover(FAR struct tcb_s *tcb)
+void mq_recover(FAR struct tcb_s *tcb, tstate_t wait_state)
 {
 	/* If were were waiting for a timed message queue event, then the
 	 * timer was canceled and deleted in task_recover() before this
@@ -115,7 +117,7 @@ void mq_recover(FAR struct tcb_s *tcb)
 
 	/* Was the task waiting for a message queue to become non-empty? */
 
-	if (tcb->task_state == TSTATE_WAIT_MQNOTEMPTY) {
+	if (wait_state == TSTATE_WAIT_MQNOTEMPTY) {
 		/* Decrement the count of waiters */
 
 		DEBUGASSERT(tcb->msgwaitq && tcb->msgwaitq->nwaitnotempty > 0);
@@ -124,7 +126,7 @@ void mq_recover(FAR struct tcb_s *tcb)
 
 	/* Was the task waiting for a message queue to become non-full? */
 
-	else if (tcb->task_state == TSTATE_WAIT_MQNOTFULL) {
+	else if (wait_state == TSTATE_WAIT_MQNOTFULL) {
 		/* Decrement the count of waiters */
 
 		DEBUGASSERT(tcb->msgwaitq && tcb->msgwaitq->nwaitnotfull > 0);
