@@ -555,29 +555,11 @@ void task_exithook(FAR struct tcb_s *tcb, int status, bool nonblocking)
 
 	irqstate_t flags;
 
-	flags = enter_critical_section();
-
-	if ((tcb->flags & TCB_FLAG_EXIT_PROCESSING) != 0) {
-
-		leave_critical_section(flags);
-		return;
-	}
-
-	leave_critical_section(flags);
+	DEBUGASSERT((tcb->flags & TCB_FLAG_EXIT_PROCESSING) != 0);
 
 #ifdef CONFIG_DEBUG
 	/* Save the terminated task/pthread's information for stack monitor and heapinfo. */
 	dbg_save_termination_info(tcb);
-#endif
-
-#ifdef CONFIG_CANCELLATION_POINTS
-	/* Mark the task as non-cancelable to avoid additional calls to exit()
-	 * due to any cancellation point logic that might get kicked off by
-	 * actions taken during exit processing.
-	 */
-	tcb->flags |= TCB_FLAG_NONCANCELABLE;
-	tcb->flags &= ~TCB_FLAG_CANCEL_PENDING;
-	tcb->cpcount = 0;
 #endif
 
 #if defined(CONFIG_SCHED_ATEXIT) || defined(CONFIG_SCHED_ONEXIT)
@@ -629,13 +611,6 @@ void task_exithook(FAR struct tcb_s *tcb, int status, bool nonblocking)
 	if (!nonblocking) {
 		task_flushstreams(tcb);
 	}
-
-	/* This function can be re-entered in certain cases.  Set a flag
-	 * bit in the TCB to note that we have already completed this exit
-	 * processing.
-	 */
-
-	tcb->flags |= TCB_FLAG_EXIT_PROCESSING;
 
 	/* Send the SIGCHILD signal to the parent task group */
 

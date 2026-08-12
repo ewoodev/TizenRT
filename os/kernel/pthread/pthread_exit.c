@@ -65,6 +65,7 @@
 #include <debug.h>
 
 #include <tinyara/arch.h>
+#include <tinyara/irq.h>
 
 #include "sched/sched.h"
 #include "task/task.h"
@@ -114,6 +115,7 @@ void pthread_exit(FAR void *exit_value)
 {
 	struct tcb_s *tcb = this_task();
 	int status;
+	irqstate_t flags;
 
 	svdbg("exit_value=%p\n", exit_value);
 
@@ -121,21 +123,13 @@ void pthread_exit(FAR void *exit_value)
 	 * are performing the JOIN handshake.
 	 */
 
+	DEBUGASSERT(task_setcancelstate(TASK_CANCEL_DISABLE, NULL) == OK);
+
 #ifndef CONFIG_DISABLE_SIGNALS
 	{
 		sigset_t set = ALL_SIGNAL_SET;
 		(void)sigprocmask(SIG_SETMASK, &set, NULL);
 	}
-#endif
-
-#ifdef CONFIG_CANCELLATION_POINTS
-	/* Mark the pthread as non-cancelable to avoid additional calls to
-	 * pthread_exit() due to any cancellation point logic that might get
-	 * kicked off by actions taken during pthread_exit processing.
-	 */
-	tcb->flags |= TCB_FLAG_NONCANCELABLE;
-	tcb->flags &= ~TCB_FLAG_CANCEL_PENDING;
-	tcb->cpcount = 0;
 #endif
 
 #ifdef CONFIG_PTHREAD_CLEANUP
@@ -162,6 +156,12 @@ void pthread_exit(FAR void *exit_value)
 	/* Recover any mutexes still held by the canceled thread */
 	pthread_mutex_inconsistent((FAR struct pthread_tcb_s *)tcb);
 #endif
+
+	flags = enter_critical_section();
+
+	tcb->flags |= TCB_FLAG_EXIT_PROCESSING;
+
+	leave_critical_section(flags); /// 어디까지 커버할지 확인 필요
 
 	/* Perform common task termination logic.  This will get called again later
 	 * through logic kicked off by _exit().  However, we need to call it before

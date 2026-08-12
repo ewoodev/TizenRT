@@ -158,14 +158,15 @@ int task_terminate(pid_t pid, bool nonblocking)
 {
 	FAR struct tcb_s *dtcb;
 	irqstate_t flags;
-	uint8_t orig_task_state;
-	uint8_t final_task_state;
+	uint8_t task_state;
 
 	/* Find for the TCB associated with matching PID */
+	flags = enter_critical_section();
 
 	dtcb = sched_gettcb(pid);
 	if (!dtcb) {
 		/* This PID does not correspond to any known task */
+		leave_critical_section(flags);
 		return -ESRCH;
 	}
 
@@ -173,16 +174,30 @@ int task_terminate(pid_t pid, bool nonblocking)
 	 * its TCB by locking ourselves as the executing task.
 	 */
 
-	flags = enter_critical_section();
-
 	/* Verify our internal sanity */
 
 #ifdef CONFIG_SMP
 	DEBUGASSERT(dtcb->task_state < NUM_TASK_STATES);
+	DEBUGASSERT(pid != getpid());
 #else
 	DEBUGASSERT(dtcb->task_state != TSTATE_TASK_RUNNING &&
 	            dtcb->task_state < NUM_TASK_STATES);
 #endif
+
+	/* Checking here again, this  same section with remove  */
+	if ((dtcb->flags & TCB_FLAG_NONCANCELABLE) != 0) {
+		dtcb->flags |= TCB_FLAG_CANCEL_PENDING;
+		leave_critical_section(flags);
+		return;
+	}
+
+	/* 중복 방지 */
+	if ((dtcb->flags & TCB_FLAG_EXIT_PROCESSING) != 0) {
+		leave_critical_section(flags);
+		return;
+	}
+
+	dtcb->flags |= TCB_FLAG_EXIT_PROCESSING;
 
 	/* Remove the task from the task list
 	 * before removing the task from the global tasklist, we are preserving its
@@ -201,12 +216,9 @@ int task_terminate(pid_t pid, bool nonblocking)
 	 */
 
 	sched_lock();
-	orig_task_state = dtcb->task_state;
+	task_state = dtcb->task_state;
 	sched_removereadytorun(dtcb);
-	final_task_state = dtcb->task_state;
-	dtcb->task_state = orig_task_state;
-	task_recover(dtcb);
-	dtcb->task_state = final_task_state;
+	dtcb->task_state = task_state;
 	sched_unlock();
 
 	/* At this point, the TCB should no longer be accessible to the system */

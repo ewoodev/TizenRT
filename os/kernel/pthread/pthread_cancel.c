@@ -119,12 +119,12 @@ int pthread_cancel(pthread_t thread)
 	}
 
 	/* Only pthreads may be canceled through this interface; tasks and
-	 * kernel threads go through task_delete().  This must be a hard check:
-	 * marking a task TCB_FLAG_CANCEL_DOOMED below without the matching
-	 * termination flow would strand it.
+	 * kernel threads go through task_delete().
 	 */
+	flags = enter_critical_section();
 
 	if ((tcb->cmn.flags & TCB_FLAG_TTYPE_MASK) != TCB_FLAG_TTYPE_PTHREAD) {
+		leave_critical_section(flags);
 		return ESRCH;
 	}
 
@@ -141,8 +141,7 @@ int pthread_cancel(pthread_t thread)
 	 * target's cancel state transitions are strictly ordered.
 	 */
 
-	flags = enter_critical_section();
-	sched_lock();
+
 	if ((tcb->cmn.flags & TCB_FLAG_NONCANCELABLE) != 0) {
 		/* Then we cannot cancel the thread now.  Here is how this is
 		 * supposed to work:
@@ -158,7 +157,6 @@ int pthread_cancel(pthread_t thread)
 		 */
 
 		tcb->cmn.flags |= TCB_FLAG_CANCEL_PENDING;
-		sched_unlock();
 		leave_critical_section(flags);
 		return OK;
 	}
@@ -179,26 +177,11 @@ int pthread_cancel(pthread_t thread)
 			notify_cancellation(&tcb->cmn);
 		}
 
-		sched_unlock();
 		leave_critical_section(flags);
 		return OK;
 	}
 #endif
 
-	/* The thread is cancelable right now and will be terminated below.  It
-	 * keeps running until task_terminate() stops it (the join completion and
-	 * cleanup calls below run first), so mark it as doomed while the flags
-	 * are still stable: task_setcancelstate() exits a doomed thread instead
-	 * of letting it become non-cancelable, so it cannot enter a region (e.g.
-	 * a filesystem holding its global lock) that the termination would
-	 * otherwise corrupt or strand.
-	 */
-
-	if (tcb != (FAR struct pthread_tcb_s *)this_task()) {
-		tcb->cmn.flags |= TCB_FLAG_CANCEL_DOOMED;
-	}
-
-	sched_unlock();
 	leave_critical_section(flags);
 
 	/* Check to see if the ID refers to ourselves.. this would be the

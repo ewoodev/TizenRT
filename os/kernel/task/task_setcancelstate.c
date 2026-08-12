@@ -96,7 +96,6 @@ int task_setcancelstate(int state, FAR int *oldstate)
 {
 	FAR struct tcb_s *tcb = this_task();
 	irqstate_t flags;
-	bool do_exit = false;
 	int ret = OK;
 
 	/* Suppress context changes for a bit so that the flags are stable. (the
@@ -150,35 +149,20 @@ int task_setcancelstate(int state, FAR int *oldstate)
 				 */
 
 				tcb->flags &= ~TCB_FLAG_CANCEL_PENDING;
-				do_exit = true;
+#ifndef CONFIG_DISABLE_PTHREAD
+				if ((tcb->flags & TCB_FLAG_TTYPE_MASK) == TCB_FLAG_TTYPE_PTHREAD) {
+					pthread_exit(PTHREAD_CANCELED);
+				} else
+#endif
+				{
+					exit(EXIT_FAILURE);
+				}
 			}
 		}
 	} else if (state == TASK_CANCEL_DISABLE) {
-		/* A cancellation may already be committed for this thread:
-		 * pthread_cancel() or task_delete() observed it as cancelable and
-		 * is in the middle of terminating it.  Becoming non-cancelable now
-		 * would let the thread enter a critical region (e.g. take a
-		 * filesystem lock) that the imminent termination would strand, so
-		 * act on the cancellation right here instead, once the locks taken
-		 * above have been released.
-		 */
 
-		if ((tcb->flags & TCB_FLAG_CANCEL_DOOMED) != 0) {
-			/* Clear the doomed mark and make the thread non-cancelable
-			 * before exiting: the exit sequence itself re-enters this
-			 * function (e.g. task_flushstreams() -> write() -> the
-			 * filesystem semtake helpers), and the mark must not trigger
-			 * a second exit from within the first one.
-			 */
+		tcb->flags |= TCB_FLAG_NONCANCELABLE;
 
-			tcb->flags &= ~TCB_FLAG_CANCEL_DOOMED;
-			tcb->flags |= TCB_FLAG_NONCANCELABLE;
-			do_exit = true;
-		} else {
-			/* Set the non-cancelable state */
-
-			tcb->flags |= TCB_FLAG_NONCANCELABLE;
-		}
 	} else {
 		set_errno(EINVAL);
 		ret = ERROR;
@@ -186,21 +170,6 @@ int task_setcancelstate(int state, FAR int *oldstate)
 
 	sched_unlock();
 	leave_critical_section(flags);
-
-	if (do_exit) {
-		/* Act on the cancellation now that every lock taken above has been
-		 * released.  Neither call returns.
-		 */
-
-#ifndef CONFIG_DISABLE_PTHREAD
-		if ((tcb->flags & TCB_FLAG_TTYPE_MASK) == TCB_FLAG_TTYPE_PTHREAD) {
-			pthread_exit(PTHREAD_CANCELED);
-		} else
-#endif
-		{
-			exit(EXIT_FAILURE);
-		}
-	}
 
 	return ret;
 }

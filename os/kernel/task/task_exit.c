@@ -260,7 +260,32 @@ int task_exit(void)
 	rtcb->irqcount++;
 #endif
 
-	ret = task_terminate(dtcb->pid, true);
+#if defined(CONFIG_APP_BINARY_SEPARATION)
+	/* Disable mpu regions when the binary is unloaded if its own mpu registers are set in mpu h/w. */
+	if (IS_BINARY_MAINTASK(dtcb)) {
+#if defined(CONFIG_ARM_MPU)
+		if (up_mpu_check_active(&dtcb->mpu_regs[0])) {
+			for (int i = 0; i < MPU_REG_NUMBER * NUM_APP_REGIONS; i += MPU_REG_NUMBER) {
+				up_mpu_disable_region(&dtcb->mpu_regs[i]);
+			}
+		}
+#elif defined(CONFIG_ARCH_USE_MMU)
+		mmu_clear_app_pgtbl(dtcb->app_id);
+#endif
+	}
+#endif
+
+
+#ifdef CONFIG_TASK_MONITOR
+	/* Unregister this pid from task monitor */
+	task_monitor_unregester_list(pid);
+#endif
+#ifdef CONFIG_PREFERENCE
+	preference_clear_callbacks(pid);
+#endif
+
+
+	sched_releasetcb(dtcb, dtcb->flags & TCB_FLAG_TTYPE_MASK);
 
 #ifdef CONFIG_SMP
 	rtcb->irqcount--;

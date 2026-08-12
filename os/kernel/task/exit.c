@@ -62,6 +62,7 @@
 #include <errno.h>
 
 #include <tinyara/fs/fs.h>
+#include <tinyara/irq.h>
 
 #include "task/task.h"
 #include "sched/sched.h"
@@ -111,6 +112,14 @@
 void exit(int status)
 {
 	struct tcb_s *tcb = this_task();
+
+	DEBUGASSERT(task_setcancelstate(TASK_CANCEL_DISABLE, NULL) == OK);
+
+	irqstate_t flags = enter_critical_section();
+
+	tcb->flags |= TCB_FLAG_EXIT_PROCESSING;
+
+	leave_critical_section(flags); /// 어디까지 커버할지 확인 필요
 
 	/* Only the lower 8-bits of status are used */
 
